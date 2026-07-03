@@ -119,7 +119,7 @@ length. Use the same K/D as a similar-class joint as a starting
 point:
 
 ```yaml
-standby_controller:
+standby_controller_a:
   ros__parameters:
     joints: [...]    # length 17 now
     target_stiffness: [20, 20, ..., 20, 30, 30, 30]   # was 14 entries, now 17
@@ -127,6 +127,12 @@ standby_controller:
     pose_segment_0: [0, 0, ..., 0, 0, 0, 0]            # arms-down + neck-zero
     pose_segment_1: [0.3, -1.0, ..., -0.3, 0, 0, 0]    # piano-ready + neck-zero
 ```
+
+STANDBY now has two poses, each a separate spawned instance of the same
+plugin with its own params block — `standby_controller_a` (Pose A) and
+`standby_controller_b` (Pose B). Both blocks own per-joint arrays, so
+extend **both** the same way when you add a joint: the arrays in
+`standby_controller_b:` must grow to the new length too.
 
 ## Step 4 — Calibrate
 

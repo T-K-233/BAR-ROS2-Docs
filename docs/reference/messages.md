@@ -69,8 +69,9 @@ match against the `uint8 <name> = <value>` defines, not hard-code integers.
 
 ## `humanoid_control_msgs/StandbyState`
 
-Published by `StandbyController` on `~/state` (which resolves to
-`/standby_controller/state`) with `TRANSIENT_LOCAL` (latched) QoS so a
+Published by each `StandbyController` instance on `~/state` — which resolves
+to `/standby_controller_a/state` (Pose A) or `/standby_controller_b/state`
+(Pose B), one topic per pose — with `TRANSIENT_LOCAL` (latched) QoS so a
 late-joining `mode_manager` immediately sees the most recent value.
 
 ```

@@ -141,11 +141,13 @@ walks back up:
 # /safety_status is now OK (level=0)
 # But mode_manager is still in DAMPING.
 # Walk back via the gamepad:
-#  L1+A or L1+B   →   STANDBY
-#  R1+A           →   LOCOMOTION
-#  R1+B           →   REMOTE
+#  L1+A   →   STANDBY (Pose A)
+#  L1+B   →   STANDBY (Pose B)
+#  R1+A   →   LOCOMOTION
+#  R1+B   →   REMOTE
 # Or via the std_srvs/Trigger services:
-ros2 service call /humanoid_control/mode/load          std_srvs/srv/Trigger
+ros2 service call /humanoid_control/mode/load_a        std_srvs/srv/Trigger
+# (use /humanoid_control/mode/load_b for Pose B)
 ros2 service call /humanoid_control/mode/start_remote  std_srvs/srv/Trigger
 ```
 

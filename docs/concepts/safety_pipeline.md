@@ -70,10 +70,13 @@ additionally has a **stale-command policy**: if the external source's
 (default 100 ms = 5 ticks at 50 Hz, measured against arrival time at the
 subscription callback — not against `MITCommand.header.stamp` — so
 publisher clock skew is irrelevant), the controller writes a fallback
-pattern rather than re-using the last command. Default `passive` → zero
-stiffness / damping → motors go limp. Alternative `hold` → freeze at the
-last commanded pose. Either way the controller stays alive and active;
-the choice is whether to "fail compliant" or "fail rigid".
+pattern rather than re-using the last command. Default `passive` → a
+**damped hold**: zero stiffness, high damping (`kD = damping_scalar`,
+default 6.0, matching DAMPING mode), holding the live joint position — the
+arms stay damped, not limp. (The same damped hold also applies when REMOTE
+is first entered, before any `MITCommand` has arrived.) Alternative `hold`
+→ freeze at the last commanded pose. Either way the controller stays alive
+and active; the choice is whether to "fail compliant" or "fail rigid".
 
 `RLPolicyController` has no such command stream — it runs inference
 in-process (System 0), so there is nothing to go stale. It guards

@@ -101,8 +101,8 @@ Finally, drive the FSM to activate (third terminal, inside `pixi shell`):
 
 ```bash
 ros2 service call /humanoid_control/mode/damp std_srvs/srv/Trigger
-ros2 service call /humanoid_control/mode/load std_srvs/srv/Trigger
-# wait for /standby_controller/state.is_finished == true
+ros2 service call /humanoid_control/mode/load_a std_srvs/srv/Trigger  # or load_b for Pose B
+# wait for /standby_controller_a/state.is_finished == true (per pose)
 ros2 service call /humanoid_control/mode/start_locomotion std_srvs/srv/Trigger
 ```
 

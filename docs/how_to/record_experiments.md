@@ -38,7 +38,8 @@ explicitly:
 ros2 bag record -s mcap -o tuning_$(date +%Y%m%d_%H%M%S) \
     /lite/joint_states \
     /control_mode \
-    /standby_controller/state \
+    /standby_controller_a/state \
+    /standby_controller_b/state \
     /safety_status \
     /joy \
     /tf /tf_static

@@ -82,7 +82,7 @@ Behavior per state:
 |---|---|---|
 | **ZERO_TORQUE** | `humanoid_control/ZeroTorqueController` | 0 to all 5 cmd interfaces. Startup default, fault fallback. |
 | **DAMPING** | `humanoid_control/DampingController` | `K=0`, `D=damping value`, `q_cmd=q_captured` — soft under gravity, resists velocity. |
-| **STANDBY** | `humanoid_control/StandbyController` | Linear pose interpolation through a YAML sequence; ramps `K_p / K_d` on first segment. Publishes `StandbyState` with `is_finished`. |
+| **STANDBY** | `humanoid_control/StandbyController` | Linear pose interpolation through a YAML sequence; ramps `K_p / K_d` on first segment. Publishes `StandbyState` with `is_finished`. Two spawned instances of this plugin — `standby_controller_a` (Pose A, `L1+A`) and `standby_controller_b` (Pose B, `L1+B`) — provide two independently selectable poses; from either you can START either policy. |
 | **LOCOMOTION** | `humanoid_control/RLPolicyController` | In-process ONNX inference (System 0): packs observations, replays the `.mcap` motion reference, decodes + writes commands — all in the RT `update()`. Runs every learned policy (tracking / piano / locomotion); they differ only by the loaded `.onnx` + `.mcap`. |
 | **REMOTE** | `humanoid_control/RemotePolicyController` | System 1/2 external-command ingress: subscribes `~/command` (`MITCommand` over DDS) from a *non*-real-time source (gravity-comp today, VLA / manipulation later) with arrival-time stale-command gating. |
 
@@ -94,14 +94,15 @@ plain `rclcpp::Node` that subscribes:
 
 - `/joy` (gamepad intents; on by default — bringup hard-fails if `/dev/input/js*`
   is missing unless you opt out with `enable_gamepad:=false`)
-- `/standby_controller/state` (the `is_finished` gate for the two `START_*` intents)
+- `/standby_controller_a/state` and `/standby_controller_b/state` (one per standby pose; the `is_finished` gate for the two `START_*` intents)
 - `/safety_status` (the auto-DAMP trigger)
 
-…and exposes five `std_srvs/Trigger` services so transitions can also be
+…and exposes six `std_srvs/Trigger` services so transitions can also be
 driven from the command line:
 
-- `/humanoid_control/mode/damp`, `/humanoid_control/mode/load`, `/humanoid_control/mode/start_remote`,
-  `/humanoid_control/mode/start_locomotion`, `/humanoid_control/mode/quit`
+- `/humanoid_control/mode/damp`, `/humanoid_control/mode/load_a`, `/humanoid_control/mode/load_b`,
+  `/humanoid_control/mode/start_remote`, `/humanoid_control/mode/start_locomotion`,
+  `/humanoid_control/mode/quit`
 
 `/control_mode` is published at 50 Hz. The manager polls
 `list_controllers` periodically (every 25 ticks = 500 ms) so controllers
@@ -234,8 +235,10 @@ Concrete examples:
   STRICT switch to DAMPING. If DAMPING fails (e.g. command interfaces
   unavailable), `mode_manager` falls back to ZERO_TORQUE.
 - A `RemotePolicyController` whose Python publisher stalls for >100 ms
-  (`stale_command_timeout_ms` default) writes **passive commands** (zero
-  stiffness/damping) by default, or zero-order-holds the last command if
+  (`stale_command_timeout_ms` default) falls into a **damped hold** by
+  default (`stale_command_policy: passive` → zero stiffness, high damping
+  like DAMPING mode, holding the live joint position — the arms stay
+  damped, not limp), or zero-order-holds the last command if
   `stale_command_policy: hold` is set. Staleness is measured against
   **arrival time at the subscription callback**, not against
   `MITCommand.header.stamp`, so publisher clock skew is irrelevant.
@@ -259,7 +262,7 @@ ships the piano-task-specific launches.
 
 | Side | Machine | Launch | What lives here |
 |---|---|---|---|
-| **Robot** | Onboard computer (RT kernel, wired tether) | `humanoid_bringup_lite/launch/real.launch.py` (Humanoid Control) | `ros2_control_node`, `humanoid_devices_robstride` / `humanoid_devices_sito` hardware plugins, `joint_state_broadcaster`, the five FSM controllers (`zero_torque` / `damping` / `standby` / `rl_policy` / `remote_policy`), `mode_manager`, `joy_node`, `robot_state_publisher`, IMU driver |
+| **Robot** | Onboard computer (RT kernel, wired tether) | `humanoid_bringup_lite/launch/real.launch.py` (Humanoid Control) | `ros2_control_node`, `humanoid_devices_robstride` / `humanoid_devices_sito` hardware plugins, `joint_state_broadcaster`, the six FSM controllers (`zero_torque` / `damping` / `standby_a` / `standby_b` / `rl_policy` / `remote_policy`), `mode_manager`, `joy_node`, `robot_state_publisher`, IMU driver |
 | **Host** | Operator workstation | `humanoid_bringup_lite/launch/viz.launch.py` (Humanoid Control) | `viser_viz` *or* `rerun_viz` (selected by `viewer:=`) |
 | **Robot** | Onboard computer | `humanoid_control_policy/launch/lite_policy.launch.py` (Humanoid Control) / `pianist_policy/launch/piano_policy.launch.py` (pianist_ros2) | Runs `prepare` (resolve ONNX, convert motion → `.mcap` + overlay) then loads `rl_policy_controller` into the local CM. Inference is in-process, so the `.onnx` / `.mcap` artifacts **and** the W&B / HF Hub / `onnxruntime` *prepare-time* deps live here. The RT path itself pulls none of them. |
 | **Robot** | Onboard computer | `pianist_policy/launch/midi_keyboard_driver.launch.py` (pianist_ros2) | USB-MIDI keyboard driver → `/piano/key_state` (`std_msgs/Float32MultiArray`); feeds the on-robot controller's `key_pressed` extern term locally (loopback, does **not** cross the tether). |

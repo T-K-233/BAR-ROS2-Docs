@@ -174,7 +174,7 @@ state. `mode_manager` writes the reason into
 
 ```
 ros2 topic echo /control_mode
-# status_message: "Rejected LOAD: requires DAMPING (currently ZERO_TORQUE)"
+# status_message: "LOAD_A ignored; must be in DAMPING"
 ```
 
 **Fix**: walk the legal path. `LOAD` requires DAMPING; `START_*`

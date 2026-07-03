@@ -96,13 +96,15 @@ transitions the gamepad would fire):
 ```bash
 # Gamepad equivalents, if you have one:
 #   X    → DAMP
-#   L1+A → LOAD (STANDBY); wait ~4 s for is_finished:true
+#   L1+A → LOAD_A (STANDBY, Pose A); wait ~4 s for is_finished:true
+#   L1+B → LOAD_B (STANDBY, Pose B) — an alternate pose; either pose
+#          can start either policy
 #
 ros2 service call /humanoid_control/mode/damp std_srvs/srv/Trigger
-ros2 service call /humanoid_control/mode/load std_srvs/srv/Trigger
+ros2 service call /humanoid_control/mode/load_a std_srvs/srv/Trigger
 
 # Wait for is_finished:
-ros2 topic echo /standby_controller/state
+ros2 topic echo /standby_controller_a/state
 # ... is_finished: true
 ```
 
@@ -159,7 +161,7 @@ once activated — there is no command topic to publish.
 
 ## Step 4 — STANDBY → START_LOCOMOTION
 
-Wait for `is_finished: true` in `/standby_controller/state`, then
+Wait for `is_finished: true` in `/standby_controller_a/state`, then
 activate the policy through the FSM (in the FSM-walk terminal, inside
 `pixi shell`):
 
