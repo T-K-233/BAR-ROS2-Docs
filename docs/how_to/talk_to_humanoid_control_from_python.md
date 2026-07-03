@@ -86,7 +86,7 @@ pub.write(zero_mit_command(state.name, damping=2.0))
 | `JointState` | `/lite/joint_states` | reliable, depth 10 |
 | `ControlMode` | `/control_mode` | reliable |
 | `SafetyStatus` | `/safety_status` | reliable |
-| `StandbyState` | `/standby_controller/state` | transient-local (latched) |
+| `StandbyState` | `/standby_controller_a/state` (one per pose; `_b` for Pose B) | transient-local (latched) |
 
 QoS reliability and durability **must** match the bringup for DDS to pair a
 writer with a reader — the registry already encodes the matching values.

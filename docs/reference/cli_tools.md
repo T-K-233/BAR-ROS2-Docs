@@ -136,8 +136,8 @@ ros2 run humanoid_controllers mode_manager --ros-args -p tick_rate_hz:=100
 | `controller_manager` | `/controller_manager` | CM namespace |
 | `joy.damp_button` | `2` | DAMP button index (default = X on Xbox) |
 | `joy.quit_button` | `6` | QUIT button index (default = BACK) |
-| `joy.load_combo_locomotion` | `[4, 0]` | LOAD combo paired with R1+A (default = L1+A) |
-| `joy.load_combo_remote` | `[4, 1]` | LOAD combo paired with R1+B (default = L1+B) |
+| `joy.load_combo_a` | `[4, 0]` | LOAD_A combo (default = L1+A → Pose A) |
+| `joy.load_combo_b` | `[4, 1]` | LOAD_B combo (default = L1+B → Pose B) |
 | `joy.start_combo_locomotion` | `[5, 0]` | START_LOCOMOTION (default = R1+A) |
 | `joy.start_combo_remote` | `[5, 1]` | START_REMOTE (default = R1+B) |
 

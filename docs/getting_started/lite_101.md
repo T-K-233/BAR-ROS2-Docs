@@ -91,7 +91,8 @@ Expected output (give or take):
 joint_state_broadcaster   joint_state_broadcaster/JointStateBroadcaster   active
 zero_torque_controller    humanoid_control/ZeroTorqueController                        active
 damping_controller        humanoid_control/DampingController                           inactive
-standby_controller        humanoid_control/StandbyController                           inactive
+standby_controller_a      humanoid_control/StandbyController                           inactive
+standby_controller_b      humanoid_control/StandbyController                           inactive
 rl_policy_controller      humanoid_control/RLPolicyController                          inactive
 remote_policy_controller  humanoid_control/RemotePolicyController                      inactive
 ```
@@ -105,7 +106,7 @@ claims all 5 command interfaces on every joint and writes 0 to all of
 them every tick. From an operator's perspective the robot is "alive but
 inert".
 
-The four other controllers are **loaded but inactive**. Loading them
+The five other controllers are **loaded but inactive**. Loading them
 runs their `on_configure` (params parsed, publishers/subscribers created)
 without claiming the command interfaces. They sit ready to be activated
 in a single service call.
@@ -117,7 +118,7 @@ ros2 topic list | grep -E "joint_states|control_mode|standby|safety"
 # /control_mode
 # /lite/joint_states
 # /safety_status
-# /standby_controller/state
+# /standby_controller_a/state
 ```
 
 `joint_state_broadcaster` is remapped at bringup so that it publishes on

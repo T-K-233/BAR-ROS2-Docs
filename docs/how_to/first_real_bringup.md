@@ -116,7 +116,7 @@ pixi shell
 # 14 joints reporting at the configured update rate
 ros2 control list_controllers
 # Expect: joint_state_broadcaster (active), zero_torque_controller (active),
-#         damping_controller / standby_controller / remote_policy_controller (inactive)
+#         damping_controller / standby_controller_a / standby_controller_b / remote_policy_controller (inactive)
 
 ros2 topic hz /lite/joint_states
 # average rate: 50.0 (± 0.2)

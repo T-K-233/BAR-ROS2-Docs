@@ -109,11 +109,11 @@ transitions through `mode_manager`'s trigger services (in a second
 terminal, inside `pixi shell`):
 
 ```bash
-ros2 service call /humanoid_control/mode/damp std_srvs/srv/Trigger    # → DAMPING   (gamepad: X)
-ros2 service call /humanoid_control/mode/load std_srvs/srv/Trigger    # → STANDBY   (gamepad: L1+A)
+ros2 service call /humanoid_control/mode/damp std_srvs/srv/Trigger    # → DAMPING (gamepad: X)
+ros2 service call /humanoid_control/mode/load_a std_srvs/srv/Trigger  # → STANDBY, Pose A (gamepad: L1+A)
 
 # Wait until the standby ramp reports finished:
-ros2 topic echo /standby_controller/state
+ros2 topic echo /standby_controller_a/state
 # ... is_finished: true
 
 ros2 service call /humanoid_control/mode/start_remote std_srvs/srv/Trigger   # → REMOTE (gamepad: R1+B)

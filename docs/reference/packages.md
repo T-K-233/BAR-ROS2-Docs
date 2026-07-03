@@ -50,7 +50,7 @@ Custom ROS 2 interfaces. Once a trained policy depends on one, it is **frozen**.
 |---|---|
 | `MITCommand` | System 1/2 source → `RemotePolicyController`. The on-wire command format (also written internally by `RLPolicyController`). |
 | `ControlMode` | `mode_manager` → `/control_mode` telemetry. |
-| `StandbyState` | `StandbyController` → `/standby_controller/state` (`is_finished` gate for the `START_LOCOMOTION` / `START_REMOTE` intents). |
+| `StandbyState` | `StandbyController` → `/standby_controller_a/state` / `/standby_controller_b/state` (one topic per pose; `is_finished` gate for the `START_LOCOMOTION` / `START_REMOTE` intents). |
 | `SafetyStatus` | every hardware plugin / controller → `/safety_status`. Per-bus `source` field; bitmask in `flags`. |
 
 See [Messages reference](messages.md) for full schemas.
@@ -277,7 +277,9 @@ The first two launches:
    `MujocoRos2ControlPlugin` loaded as a pluginlib physics plugin).
 3. Start `robot_state_publisher`.
 4. Spawn `joint_state_broadcaster` (active) + `zero_torque_controller`
-   (active) + the four remaining mode controllers (inactive).
+   (active) + the five remaining mode controllers (inactive) — `damping`,
+   the two standby poses (`standby_controller_a` / `standby_controller_b`),
+   `rl_policy`, and `remote_policy`.
 5. Start `mode_manager` (when `enable_mode_manager:=true`).
 6. Start `joy_node` (when `enable_gamepad:=true`, which is the default).
 

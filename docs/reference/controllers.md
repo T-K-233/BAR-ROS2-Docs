@@ -58,6 +58,11 @@ resistance.
 `K_p / K_d` from `0` to target gains during the **first** segment so
 activation never snaps.
 
+**Instances**: spawned **twice** — `standby_controller_a` (Pose A, loaded by
+`L1+A` / `/humanoid_control/mode/load_a`) and `standby_controller_b` (Pose B,
+loaded by `L1+B` / `/humanoid_control/mode/load_b`). Same plugin class (and same
+`standby_controller.cpp`), different pose parameters in the bringup YAML.
+
 **Parameters**:
 
 | Param | Type | Description |
@@ -69,16 +74,18 @@ activation never snaps.
 | `pose_segment_<i>` | `float64[]` | Per-segment target pose vector; one parameter per segment index in `[0, len(segment_durations))`. Each is a per-joint position array sized to `len(joints)`. |
 
 **Publishes**: `~/state` (`humanoid_control_msgs/StandbyState`) with `TRANSIENT_LOCAL` QoS
-so `mode_manager` sees `is_finished` even on late join.
+so `mode_manager` sees `is_finished` even on late join — i.e.
+`/standby_controller_a/state` and `/standby_controller_b/state`, one per instance.
+Watch the one matching the pose you loaded.
 
 :::tip[How the bundled config interpolates]
-`humanoid_control_lite_controllers.yaml` ships **two segments**: `pose_segment_0` is
-the zero-pose (where the robot starts), `pose_segment_1` is the
-piano-ready training default — mirror-symmetric across the sagittal plane
-(shoulders roll outward, elbows bend in, wrists relax). The LOAD intent
-therefore animates the arms from zero to the piano-ready pose over two
-2-second segments while ramping `K_p` / `K_d` from 0 to the target gains
-during the first segment.
+`humanoid_control_lite_controllers.yaml` configures **both instances** with
+**two segments** each: `pose_segment_0` is the zero-pose (where the robot
+starts) and `pose_segment_1` is that instance's target pose —
+`standby_controller_a` and `standby_controller_b` differ only in this final
+pose (Pose A vs Pose B). A LOAD_A / LOAD_B intent therefore animates the arms
+from zero to the chosen pose over two 2-second segments while ramping `K_p` /
+`K_d` from 0 to the target gains during the first segment.
 :::
 
 `fallback_controllers: ["damping_controller"]` is set on the
@@ -137,8 +144,10 @@ anymore — those run in-process in `RLPolicyController`.
 | Param | Type | Default | Description |
 |---|---|---|---|
 | `joints` | `string[]` | — | Required. |
-| `stale_command_policy` | `string` | `passive` | `passive` or `hold` |
+| `stale_command_policy` | `string` | `passive` | `passive` or `hold`. `passive` is a **damped hold** — zero stiffness (`kP=0`) and high damping (`kD = damping_scalar`) while holding the live joint position, exactly like DAMPING mode; applied both on entering REMOTE before the first command **and** on stale dropouts (it no longer goes fully limp). `hold` is unchanged. |
 | `stale_command_timeout_ms` | `int` | `100` | Staleness window measured against the message's **arrival time at the subscription callback**, not against `MITCommand.header.stamp`. Publisher clock skew is irrelevant. |
+| `damping` | `float64[]` | `[]` | Per-joint `K_d` for the `passive` damped hold. Empty → use `damping_scalar`. |
+| `damping_scalar` | `float64` | `6.0` | Damping used when `damping` is empty — matches the DAMPING mode's damping. |
 
 The controller **rejects** any `MITCommand` whose `joint_names` doesn't match
 its claimed order, or whose array lengths don't all match `joints.size()`.
@@ -162,9 +171,9 @@ path relates.
 | Input | Topic / source | Purpose |
 |---|---|---|
 | Gamepad | `/joy` (`sensor_msgs/Joy`) | DAMP / LOAD / START_LOCOMOTION / START_REMOTE / QUIT intents |
-| Standby done | `/standby_controller/state` (`StandbyState`) | gate the START intents on `is_finished` |
+| Standby done | `/standby_controller_a/state` or `/standby_controller_b/state` (`StandbyState`) | gate the START intents on `is_finished` (watch the loaded pose's instance) |
 | Safety | `/safety_status` (`SafetyStatus`) | auto-fall to DAMPING on non-OK |
-| Trigger services | `/humanoid_control/mode/{damp,load,start_remote,start_locomotion,quit}` (`std_srvs/Trigger`) | same intents from the command line |
+| Trigger services | `/humanoid_control/mode/{damp,load_a,load_b,start_remote,start_locomotion,quit}` (`std_srvs/Trigger`) | same intents from the command line |
 
 | Output | Topic | Purpose |
 |---|---|---|
@@ -176,17 +185,19 @@ path relates.
 | Buttons | Intent | Target |
 |---|---|---|
 | `X` (2) | DAMP | `damping_controller` |
-| `L1+A` (4+0) **or** `L1+B` (4+1) | LOAD | `standby_controller` |
+| `L1+A` (4+0) | LOAD_A | `standby_controller_a` (Pose A) |
+| `L1+B` (4+1) | LOAD_B | `standby_controller_b` (Pose B) |
 | `R1+A` (5+0) | START_LOCOMOTION | `rl_policy_controller` |
 | `R1+B` (5+1) | START_REMOTE | `remote_policy_controller` |
 | `BACK` (6) | QUIT | `rclcpp::shutdown()` |
 
-The two LOAD combos and two START combos are paired by **operator
-convention** (A = local policy, B = remote policy): `L1+A → R1+A` for the
-locomotion (local) path, `L1+B → R1+B` for the remote-policy path. The `LOAD` transition lands in
-the same `STANDBY` state either way — the pairing just lets the
-operator's thumb stay on the same column through the LOAD → START
-sequence.
+The two LOAD combos load **different poses** (`standby_controller_a` vs
+`standby_controller_b`); the two START combos pick the **policy**. The two
+axes are independent — from either standby pose you can start either policy
+(`R1+A` → LOCOMOTION, `R1+B` → REMOTE), so `L1+A → R1+B` is just as valid as
+`L1+A → R1+A`. The only constraint is that you cannot switch A↔B directly:
+`LOAD` is admissible only from DAMPING, so to change pose you DAMP first,
+then load the other pose.
 
 **Parameters**:
 
@@ -196,8 +207,8 @@ sequence.
 | `controller_manager` | `string` | `/controller_manager` | CM namespace |
 | `joy.damp_button` | `int` | `2` | DAMP button index |
 | `joy.quit_button` | `int` | `6` | QUIT button index |
-| `joy.load_combo_locomotion` | `int[]` | `[4, 0]` | LOAD combo (locomotion-paired = L1+A) |
-| `joy.load_combo_remote` | `int[]` | `[4, 1]` | LOAD combo (remote-paired = L1+B) |
+| `joy.load_combo_a` | `int[]` | `[4, 0]` | LOAD_A combo (L1+A → Pose A) |
+| `joy.load_combo_b` | `int[]` | `[4, 1]` | LOAD_B combo (L1+B → Pose B) |
 | `joy.start_combo_locomotion` | `int[]` | `[5, 0]` | START_LOCOMOTION combo (R1+A) |
 | `joy.start_combo_remote` | `int[]` | `[5, 1]` | START_REMOTE combo (R1+B) |
 

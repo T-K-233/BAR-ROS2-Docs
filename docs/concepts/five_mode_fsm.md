@@ -34,7 +34,7 @@ property.
 |---|---|---|---|
 | **ZERO_TORQUE** | `humanoid_control::ZeroTorqueController` | `0` to all 5 MIT interfaces on every joint | Startup default. Fault fallback when DAMPING can't be applied (e.g. state not yet valid). Robot is alive but inert. |
 | **DAMPING** | `humanoid_control::DampingController` | `stiffness=0`, `damping=damping_value`, `position=captured`, `velocity=0`, `effort=0` | Compliant fail-safe. Robot stays soft under gravity but resists velocity. The state you pass through between operator-driven transitions. |
-| **STANDBY** | `humanoid_control::StandbyController` | Interpolated `position` along a YAML pose sequence; `K_p`/`K_d` ramped 0→target during segment 0 | Animate the arms to the piano-ready pose with gain ramp-in. Publishes `~/state.is_finished` so transitions out are gated correctly. |
+| **STANDBY** | `humanoid_control::StandbyController` | Interpolated `position` along a YAML pose sequence; `K_p`/`K_d` ramped 0→target during segment 0 | Animate the arms to a ready pose with gain ramp-in. Spawned as **two instances** — `standby_controller_a` (Pose A) and `standby_controller_b` (Pose B) — the same plugin with different YAML poses. Each publishes `~/state.is_finished` so transitions out are gated correctly. |
 | **LOCOMOTION** | `humanoid_control::RLPolicyController` | In-process ONNX inference (low-latency, C++): packs obs, replays the `.mcap` motion reference, writes commands | **Every learned policy** — tracking, piano, locomotion. They differ only by the loaded `.onnx` + `.mcap`; the ONNX `task_type` selects the term set. This is the System 0 real-time path. |
 | **REMOTE** | `humanoid_control::RemotePolicyController` | `MITCommand` consumed from `~/command` over DDS | System 1/2 external-command ingress: a *non*-real-time source publishes commands (gravity-comp today via `Lite-Gravity-Compensation`; VLA / manipulation later). Not used by the learned policies. |
 
@@ -49,7 +49,8 @@ current mode:
 
 ```
 DAMP             (X)        : any state            → DAMPING
-LOAD             (L1+A/B)   : DAMPING              → STANDBY
+LOAD_A           (L1+A)     : DAMPING              → STANDBY (standby_controller_a, Pose A)
+LOAD_B           (L1+B)     : DAMPING              → STANDBY (standby_controller_b, Pose B)
 START_LOCOMOTION (R1+A)     : STANDBY ∧ is_finished → LOCOMOTION
 START_REMOTE     (R1+B)     : STANDBY ∧ is_finished → REMOTE
 QUIT             (BACK)     : ZERO_TORQUE or DAMPING → rclcpp::shutdown()
@@ -58,7 +59,7 @@ QUIT             (BACK)     : ZERO_TORQUE or DAMPING → rclcpp::shutdown()
 ```
 
 The same transitions are also exposed as `std_srvs/Trigger` services
-under `/humanoid_control/mode/{damp,load,start_remote,start_locomotion,quit}`, so a
+under `/humanoid_control/mode/{damp,load_a,load_b,start_remote,start_locomotion,quit}`, so a
 keyboardless lab box can drive the FSM with `ros2 service call …`.
 
 `mode_manager` publishes `/control_mode` (`humanoid_control_msgs/ControlMode`) at
@@ -91,19 +92,30 @@ back to ZERO_TORQUE and writes the failure reason into
 See [Concepts → Safety pipeline](./safety_pipeline.md) for what each
 flag means and which plugin sets it.
 
-## Pairing convention for the START combos
+## Pose and policy are independent
 
-`L1+A → R1+A` is the "locomotion" (local) path; `L1+B → R1+B` is the
-"remote policy" path. **Both LOAD combos land in the same STANDBY** —
-the A/B distinction is just operator UX so your thumb stays on one
-column through `LOAD → START`. The FSM doesn't enforce it; you could
-press `L1+A` then `R1+B` and the state machine would happily route
-you DAMPING → STANDBY → REMOTE.
+The two LOAD combos select **which standby pose** to animate to; the two
+START combos select **which policy** to run. The two axes are orthogonal:
 
-The reason for two combos at all is the **policy target is chosen at
-runtime**, not by a launch arg. There's no `policy_mode` parameter on
-`mode_manager` — the choice between `RemotePolicyController` and
-`RLPolicyController` is the button that ends the START combo.
+- `L1+A` → LOAD_A loads `standby_controller_a` (Pose A); `L1+B` → LOAD_B
+  loads `standby_controller_b` (Pose B). The two instances are the same
+  `StandbyController` plugin (source `standby_controller.cpp`, unchanged)
+  configured with **different YAML poses**.
+- From **either** standby pose you can start **either** policy: `R1+A` →
+  LOCOMOTION (`rl_policy_controller`), `R1+B` → REMOTE
+  (`remote_policy_controller`). There is no pairing — `L1+A` then `R1+B`
+  is exactly as valid as `L1+A` then `R1+A`.
+
+The one thing you **cannot** do is switch directly from Pose A to Pose B
+(or back): LOAD is admissible only from DAMPING (unchanged), so to change
+pose you DAMP first, then LOAD the other pose. On `/control_mode` both
+poses report `mode = STANDBY`; the `controller_name` field tells you which
+one is active (`standby_controller_a` vs `standby_controller_b`).
+
+The **policy target is still chosen at runtime**, not by a launch arg.
+There's no `policy_mode` parameter on `mode_manager` — the choice between
+`RemotePolicyController` and `RLPolicyController` is the button that ends
+the START combo.
 
 ## What mode_manager is *not*
 

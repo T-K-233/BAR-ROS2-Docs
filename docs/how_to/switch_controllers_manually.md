@@ -69,36 +69,47 @@ oscillating.
 
 ### DAMPING → STANDBY
 
+STANDBY has two poses, each a separately spawned instance of the same
+plugin: `standby_controller_a` (Pose A) and `standby_controller_b`
+(Pose B). Activate whichever pose you want:
+
 ```bash
 ros2 control switch_controllers \
     --deactivate damping_controller \
-    --activate   standby_controller
+    --activate   standby_controller_a
 ```
+
+Use `--activate standby_controller_b` instead for Pose B.
 
 **The motors will move.** Standby ramps `K_p` / `K_d` from 0 to the
 target gains during segment 0, then interpolates to the piano-ready
 pose during segment 1. Total runtime ~4 seconds. Support the arms or
 have a clear workspace.
 
-Watch `/standby_controller/state` for `is_finished: true`:
+Watch the state topic for the pose you activated (one per instance) for
+`is_finished: true`:
 
 ```bash
-ros2 topic echo /standby_controller/state
+ros2 topic echo /standby_controller_a/state
 ```
 
 ### STANDBY → REMOTE (or LOCOMOTION)
 
 ```bash
 ros2 control switch_controllers \
-    --deactivate standby_controller \
+    --deactivate standby_controller_a \
     --activate   remote_policy_controller
 ```
+
+(Deactivate whichever standby instance is active —
+`standby_controller_a` or `standby_controller_b`.)
 
 `remote_policy_controller` (`humanoid_control/RemotePolicyController`) is the
 **System 1/2 external-command ingress**: it immediately starts looking
 for `MITCommand` on `/remote_policy_controller/command`. Without a
 publisher it'll trip its stale-command policy (`passive` by default
-→ motors go limp) within 100 ms. To use this for real, start a
+→ a damped hold: zero stiffness, high damping like DAMPING, holding
+live position) within 100 ms. To use this for real, start a
 non-real-time `MITCommand` source first — gravity compensation
 (`Lite-Gravity-Compensation`) today, VLA / manipulation later. This
 controller is **not** fed by any learned policy; learned policies run
@@ -135,7 +146,8 @@ ros2 control list_controllers
 #   damping_controller        humanoid_control/DampingController        active
 #   zero_torque_controller    humanoid_control/ZeroTorqueController     inactive
 #   joint_state_broadcaster   joint_state_broadcaster/...  active
-#   standby_controller        humanoid_control/StandbyController        inactive
+#   standby_controller_a      humanoid_control/StandbyController        inactive
+#   standby_controller_b      humanoid_control/StandbyController        inactive
 #   remote_policy_controller  humanoid_control/RemotePolicyController   inactive
 
 # What hardware components are up?
@@ -160,7 +172,7 @@ ros2cs zero_torque_controller damping_controller
 # Force a strict switch (fail if either controller is in the wrong state)
 ros2 control switch_controllers \
     --deactivate damping_controller \
-    --activate   standby_controller \
+    --activate   standby_controller_a \
     --strict
 ```
 

@@ -134,14 +134,17 @@ hc viz rerun                            # native rerun window
 | Buttons | Intent | Allowed from | Activates |
 |---|---|---|---|
 | `X` | DAMP | any state | `damping_controller` |
-| `L1 + A` *or* `L1 + B` | LOAD | DAMPING | `standby_controller` |
+| `L1 + A` | LOAD_A | DAMPING | `standby_controller_a` (Pose A) |
+| `L1 + B` | LOAD_B | DAMPING | `standby_controller_b` (Pose B) |
 | `R1 + A` | START_LOCOMOTION | STANDBY (gated on `is_finished`) | `rl_policy_controller` |
 | `R1 + B` | START_REMOTE | STANDBY (gated on `is_finished`) | `remote_policy_controller` |
 | `BACK` | QUIT | ZERO_TORQUE or DAMPING only | `rclcpp::shutdown()` |
 
-Pair conventionally (A = local, B = remote): `L1+A → R1+A` for locomotion,
-`L1+B → R1+B` for remote-policy. Combos are identical functionally; the operator's thumb
-just stays on one column. See [Concepts → Five-mode FSM](../concepts/five_mode_fsm.md).
+`L1+A` and `L1+B` load **different poses** (`standby_controller_a` /
+`standby_controller_b`); the START combo picks the policy. Pose and policy are
+independent — from either pose, `R1+A` → LOCOMOTION or `R1+B` → REMOTE. You
+cannot switch A↔B directly (LOAD is admissible only from DAMPING); DAMP first,
+then load the other pose. See [Concepts → Five-mode FSM](../concepts/five_mode_fsm.md).
 
 ## Manual controller switching (no FSM)
 
@@ -153,10 +156,11 @@ ros2 control switch_controllers \
     --deactivate zero_torque_controller \
     --activate   damping_controller
 
-# DAMPING → STANDBY (motors will move to piano-ready over ~4 s)
+# DAMPING → STANDBY Pose A (motors will move to the ready pose over ~4 s;
+# use standby_controller_b for Pose B)
 ros2 control switch_controllers \
     --deactivate damping_controller \
-    --activate   standby_controller
+    --activate   standby_controller_a
 
 # Back to safe
 ros2 control switch_controllers \
@@ -175,7 +179,8 @@ Always end a session with `zero_torque_controller` active before
 | `/imu/data` | `sensor_msgs/Imu` | sensor-rate | always; RELIABLE |
 | `/control_mode` | `humanoid_control_msgs/ControlMode` | 50 Hz | always (`mode_manager`) |
 | `/safety_status` | `humanoid_control_msgs/SafetyStatus` | on-change, latched | TRANSIENT_LOCAL; `source` field per bus |
-| `/standby_controller/state` | `humanoid_control_msgs/StandbyState` | active-only | TRANSIENT_LOCAL; watch for `is_finished:true` before R1+A |
+| `/standby_controller_a/state` | `humanoid_control_msgs/StandbyState` | active-only | TRANSIENT_LOCAL; Pose A. Watch for `is_finished:true` before R1+A/R1+B |
+| `/standby_controller_b/state` | `humanoid_control_msgs/StandbyState` | active-only | TRANSIENT_LOCAL; Pose B. Watch the instance matching the loaded pose |
 | `/remote_policy_controller/command` | `humanoid_control_msgs/MITCommand` | source rate | when a System 1/2 source (gravity-comp, VLA) feeds `remote_policy_controller` |
 | `/piano/key_state` | `std_msgs/Float32MultiArray` | sensor / sim rate | piano runs only (RELIABLE + KEEP_LAST(1)); live key state, in-process `key_pressed` term |
 | `/joy` | `sensor_msgs/Joy` | sensor-rate | when `enable_gamepad:=true` (default) |
@@ -197,7 +202,7 @@ ros2 topic echo --once /safety_status
 
 # Drive an FSM transition without a gamepad
 ros2 service call /humanoid_control/mode/damp std_srvs/srv/Trigger
-ros2 service call /humanoid_control/mode/load std_srvs/srv/Trigger
+ros2 service call /humanoid_control/mode/load_a std_srvs/srv/Trigger   # Pose A (load_b for Pose B)
 
 # Fake a System 1/2 MITCommand publish (when remote_policy_controller is active in MuJoCo)
 ros2 topic pub --once /remote_policy_controller/command \
@@ -212,7 +217,8 @@ intents — useful when there's no joystick attached.
 | Service | Effect |
 |---|---|
 | `/humanoid_control/mode/damp` | → DAMPING from any state |
-| `/humanoid_control/mode/load` | DAMPING → STANDBY |
+| `/humanoid_control/mode/load_a` | DAMPING → STANDBY (Pose A, `standby_controller_a`) |
+| `/humanoid_control/mode/load_b` | DAMPING → STANDBY (Pose B, `standby_controller_b`) |
 | `/humanoid_control/mode/start_remote` | STANDBY → REMOTE (gated on `is_finished`) |
 | `/humanoid_control/mode/start_locomotion` | STANDBY → LOCOMOTION (gated on `is_finished`) |
 | `/humanoid_control/mode/quit` | exit (only from ZERO_TORQUE or DAMPING) |
@@ -261,7 +267,7 @@ Five command interfaces per joint: `position`, `velocity`, `effort`,
 | `ENOBUFS` / `Network is down` warnings | Motor power off → frames don't ACK → qdisc fills. Power the motors. |
 | `/lite/joint_states` shows exactly 0.0 for every joint | Motors un-Enabled (no power, or Enable frame dropped). Check `/safety_status flags`. |
 | Launch dies with "`joy_dev:=/dev/input/jsN` does not exist" | `enable_gamepad:=true` is the default and the bringup hard-fails when the resolved joystick path is missing. Plug a gamepad in, pass `joy_dev:=<actual path>` (the error message lists any other `/dev/input/js*` it found), or pass `enable_gamepad:=false`. |
-| `mode_manager` rejects `LOAD` from anywhere other than DAMPING | Send DAMP (`X`) first. See FSM table above. |
+| `mode_manager` rejects `LOAD_A`/`LOAD_B` from anywhere other than DAMPING | Send DAMP (`X`) first. See FSM table above. |
 | `ros2 topic echo /safety_status` reports `flags ≠ 0` | Check [Concepts → Safety pipeline](../concepts/safety_pipeline.md) for the bit definitions. |
 
 Full guidance: [Troubleshooting](./troubleshooting.md).

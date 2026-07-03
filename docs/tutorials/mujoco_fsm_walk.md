@@ -105,7 +105,11 @@ X. The FSM accepts DAMP from any state — even mid-policy.
 
 ## Step 4 — Transition: LOAD (DAMPING → STANDBY)
 
-Press **L1 + A** (hold L1, press A).
+Press **L1 + A** (hold L1, press A) — this loads **Pose A**
+(`standby_controller_a`). `L1 + B` loads a *different* pose, **Pose B**
+(`standby_controller_b`); the two poses are independent, and you can only
+switch from one to the other by going through DAMPING first (there is no
+direct A ↔ B switch).
 
 The arms now ramp through a two-segment trajectory:
 1. Segment 0 (~2 s): K_p/K_d ramp 0 → target while position
@@ -114,9 +118,10 @@ The arms now ramp through a two-segment trajectory:
 2. Segment 1 (~2 s): position interpolates to the piano-ready pose
    (shoulders rolled out, elbows bent in). K_p/K_d stay at target.
 
-While Standby is running:
+While Standby is running (watch the topic for the pose you loaded — here
+Pose A):
 ```bash
-ros2 topic echo /standby_controller/state
+ros2 topic echo /standby_controller_a/state
 # current_segment: 0, progress: 0.45, is_finished: false
 # ...
 # current_segment: 1, progress: 0.95, is_finished: false
@@ -129,15 +134,15 @@ dragging in MuJoCo, they'll pull back to the standby pose.
 Now try pressing L1 + A again from STANDBY. The FSM rejects the
 intent and writes the reason to `/control_mode.status_message`:
 ```
-status_message: "LOAD ignored; must be in DAMPING"
+status_message: "LOAD_A ignored; must be in DAMPING"
 ```
 
 That's the gating — LOAD is only legal from DAMPING.
 
 ## Step 5 — Transition: START_REMOTE (STANDBY → REMOTE)
 
-**Wait for `is_finished:true`** in `/standby_controller/state` first.
-Then press **R1 + B**.
+**Wait for `is_finished:true`** in `/standby_controller_a/state` first
+(the topic for the pose you loaded). Then press **R1 + B**.
 
 `/control_mode` shows:
 ```
@@ -147,10 +152,12 @@ controller_name: remote_policy_controller
 
 `remote_policy_controller` is now claiming the command interfaces
 and looking for `MITCommand` on `/remote_policy_controller/command`.
-Nothing is publishing yet — within 100 ms (the
-`stale_command_timeout_ms`) it activates its stale-command policy
-(default `passive` → zero stiffness/damping). The arms in MuJoCo go
-limp.
+Nothing is publishing yet. On entering REMOTE before any `MITCommand`
+arrives — and again after >100 ms (the `stale_command_timeout_ms`)
+without one — its `passive` stale-command policy holds a **damped** pose:
+zero stiffness, high damping (like DAMPING mode), holding the live joint
+position. The arms in MuJoCo sag and settle under damping but stay
+damped — they are not free-swinging.
 
 This is **the expected behavior** without an external command source.
 `RemotePolicyController` is the System 1/2 external-command ingress: to
@@ -179,9 +186,9 @@ ros2 topic pub --once /remote_policy_controller/command \
 ```
 
 The arms snap toward that pose — one publish only, so within 100 ms
-they go limp again as the stale-command policy kicks in. Repeat the
-publish to drive continuously, or move to the policy tutorial for
-the auto-publish path.
+they relax back into the damped hold (zero stiffness, high damping) as
+the stale-command policy kicks in. Repeat the publish to drive
+continuously, or move to the policy tutorial for the auto-publish path.
 
 ## Step 6 — Transition: DAMP (out of REMOTE)
 
