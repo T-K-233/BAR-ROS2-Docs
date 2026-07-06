@@ -93,6 +93,14 @@ const sidebars: SidebarsConfig = {
         'reference/reference_map',
       ],
     },
+    {
+      type: 'category',
+      label: 'Extras',
+      collapsed: true,
+      items: [
+        'extras/prime_bringup',
+      ],
+    },
   ],
 };
 

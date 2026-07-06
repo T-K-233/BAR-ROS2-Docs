@@ -54,7 +54,7 @@ git-tracked YAML.
 - The arms are **supported** (jig, table, or a helper). Damping limits the *speed* of a
   fall, not the position — the shoulder still holds the whole arm.
 - The IgH EtherCAT master is running and the drives are powered. See
-  [First real-hardware bringup](./first_real_bringup.md).
+  [Prime real-hardware bringup](../extras/prime_bringup.md).
 - e-stop in reach.
 
 ## Step 1 — Bring up the chain and the tracker
