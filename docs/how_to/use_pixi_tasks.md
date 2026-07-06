@@ -96,8 +96,15 @@ across workspaces**. Anything whose scope depends on the workspace
 ## Level 3 — scenario tasks
 
 Reserved *names*; each workspace defines their scope. Grammar:
-`scenario[-qualifier]`, where the unqualified name is the workspace's
-default target.
+`scenario[-qualifier]`, **at most one qualifier**, where the
+unqualified name is the workspace's default target. The qualifier
+encodes only the *primary* task variant; every secondary parameter
+(robot, backend, checkpoint, scene, …) stays a ROS launch argument:
+
+```sh
+pixi run sim-piano robot:=prime policy:=latest    # right
+pixi run sim-prime-piano-latest                   # wrong — name explosion
+```
 
 In `humanoid_control_ws` (scope = the base control stack; unqualified =
 Lite):
@@ -138,9 +145,10 @@ Decision rule, in order:
    tool) — add an `hc` verb in `humanoid_control_cli`, never a task.
 2. **Scenario or workspace-local script** — add a task in that
    workspace's `pixi.toml`, using the reserved scenario vocabulary
-   where it applies (`sim`, `real`, `policy` + `-qualifier`), free
-   kebab-case otherwise. Give it a `description` — `pixi task list` is
-   the menu.
+   where it applies (`sim`, `real`, `policy`, plus at most one
+   `-qualifier` for the primary variant; secondary parameters stay
+   launch args), free kebab-case otherwise. Give it a `description` —
+   `pixi task list` is the menu.
 3. **Operates on the workspace** (fetch, build, verify) — lifecycle
    task, universal names only.
 4. **Needs root or mutates host state** (CAN buses, kernel) — a script
