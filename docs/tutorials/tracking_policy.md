@@ -129,7 +129,7 @@ ros2 launch humanoid_control_policy lite_policy.launch.py \
 
 The task family is selected by the ONNX `task_type` metadata — there is
 no `task:=` argument. (`lite_tracking.launch.py` is kept as a thin
-pass-through alias for the `launch-policy-tracking` pixi task.)
+pass-through alias for existing scripts that reference it by name.)
 
 What happens behind the scenes:
 

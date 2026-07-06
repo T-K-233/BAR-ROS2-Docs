@@ -198,13 +198,16 @@ See [Controllers reference](controllers.md).
 
 ### `humanoid_control_cli`
 
-The unified verb/noun CLI surface (`hc bus ping`, `hc bus discover`,
-`hc motor slider`, `hc viz rerun`, `hc viz viser`). An ament_python
-package that thin-wraps the underlying executables shipped by
-`humanoid_devices_robstride` and `humanoid_bringup_lite`. Invoke as `bar <verb> <noun> …`
-once `install/setup.bash` is sourced. (`pixi run hc …` is the
-workspace-level shortcut — see
-[Workspace shortcuts with pixi](../how_to/use_pixi_tasks.md).)
+The packaged product toolbox: a unified verb/noun CLI surface
+(`hc bus ping`, `hc bus discover`, `hc motor slider`, `hc viz`,
+`hc viz urdf`, `hc calibrate`). An ament_python package that thin-wraps
+the underlying executables shipped by `humanoid_devices_robstride` and
+`humanoid_bringup_lite`, and installs a `bin/` shim so `hc` is on `PATH`
+in any sourced overlay or conda env — invoke it directly once the
+workspace env is active. Scope: only verbs whose meaning is invariant
+across workspaces; scenario commands (`sim`, `real`, `policy`) are pixi
+tasks in each workspace — see
+[Workspace commands](../how_to/use_pixi_tasks.md).)
 
 ### `humanoid_control_policy`
 

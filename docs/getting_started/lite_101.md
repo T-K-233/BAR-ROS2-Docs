@@ -23,8 +23,8 @@ cd humanoid_control_ws && pixi shell
 ```
 
 Stay in that shell for the rest of the lesson. If you ever want
-shorter shortcuts (e.g. `pixi run launch-mujoco`) the equivalent
-aliases live in [How-to → Workspace shortcuts with
+shorter shortcuts (e.g. `pixi run sim`) the equivalent
+tasks live in [How-to → Workspace shortcuts with
 pixi](../how_to/use_pixi_tasks.md); the canonical `ros2 launch`
 form is what's shown below.
 

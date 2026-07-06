@@ -78,12 +78,12 @@ platforms = ["linux-64", "linux-aarch64"]
 # ROS 2 CLI + launch + runtime (ros2 launch / run / pkg). The bar packages
 # declare their library deps but not the CLI tooling, so pull a ROS base
 # yourself. Use ros-jazzy-desktop instead if you want the RViz-based
-# `view` / `viz` launches.
+# viewers (`hc viz urdf`, `view_lite.launch.py`).
 ros-jazzy-ros-base = "*"
 # The whole Lite bringup: humanoid_controllers (ONNX-enabled), humanoid_control_msgs,
 # lite_description, humanoid_devices_robstride, humanoid_drivers_socketcan, humanoid_control_common, humanoid_control_policy.
 ros-jazzy-humanoid-control-bringup-lite = "*"
-# Optional: the `hc` diagnostic CLI (run via `ros2 run humanoid_control_cli hc ...`).
+# Optional: the `hc` toolbox CLI — lands on PATH (hc viz / hc bus ping / ...).
 ros-jazzy-humanoid-control-cli = "*"
 ```
 
@@ -113,14 +113,14 @@ pixi run ros2 launch humanoid_bringup_lite real.launch.py
 RoboStack ROS core — no build step. Everything the packages ship (launch files,
 URDFs, meshes, controller YAMLs, console executables) lands on the ament index,
 so `ros2 launch …` / `ros2 run …` work inside `pixi shell` (or via
-`pixi run …`). The `hc` diagnostic CLI is a package executable — run it as
-`ros2 run humanoid_control_cli hc …`.
+`pixi run …`). The `hc` toolbox CLI installs a `bin/` shim, so `hc` itself
+is on `PATH` inside `pixi shell` (or via `pixi run -- hc …`).
 
 ```sh
 pixi shell
 ros2 pkg list | grep '^humanoid_control_'                              # the humanoid_control_* packages you pulled in
 ros2 launch humanoid_bringup_lite real.launch.py --show-args   # dry-parse the launch (no hardware)
-ros2 run humanoid_control_cli hc bus discover --iface can0 --scan-to 32   # read-only CAN scan, e.g.
+hc bus discover --iface can0 --scan-to 32              # read-only CAN scan, e.g.
 ```
 
 :::note[What the channel ships today]
@@ -186,7 +186,7 @@ reproducible solve.
 ### 3. Pull third-party sources
 
 ```sh
-vcs import --input src/humanoid_control/bar.repos src
+pixi run setup    # = vcs import --skip-existing --input src/humanoid_control/humanoid_control.repos src
 ```
 
 This brings in the three `mujoco_*` packages and `ethercat_driver_ros2` under
@@ -207,16 +207,23 @@ on the host, then drop the `--packages-skip-regex` filter.
 
 ```sh
 pixi shell
-colcon build --symlink-install --packages-skip-regex 'ethercat.*|humanoid_bringup_prime'
+colcon build --packages-skip-regex 'ethercat.*|humanoid_bringup_prime'
 ```
 
-`pixi shell` sources the conda env and `humanoid_control_ws/install/setup.bash` once it
-exists, so `ros2`, `colcon`, and every console script land on `PATH`. The build
+(Equivalently, from any terminal: `pixi run build` — it chains the cached
+`setup` from step 3, so steps 3–4 are really one command. `--symlink-install`
+and the compile-commands export come from `config/colcon-defaults.yaml` via
+`COLCON_DEFAULTS_FILE`, so the manual invocation behaves identically.)
+
+`pixi shell` sources the conda env and (via `scripts/activate.sh`) the
+`install/setup.sh` overlay once it exists, so `ros2`, `colcon`, `hc`, and every
+console script land on `PATH`. The build
 covers the Lite path (every Humanoid Control + Pianist package plus the three `mujoco_*`
 deps). `--symlink-install` means edits to launch / config / Python files are
 picked up without rebuilding. After the first successful build the install
 overlay is on `AMENT_PREFIX_PATH` automatically — pixi's `[activation]` block
-re-sources `install/setup.bash` whenever you enter `pixi shell`.
+re-sources the overlay whenever you enter `pixi shell`. Then run
+`pixi run doctor` to verify the workspace end-to-end.
 
 ### 5. Sanity-check
 
@@ -262,6 +269,6 @@ RViz, run a mock bringup, then run the same controllers against MuJoCo physics.
 (The MuJoCo steps need the source build above, until `mujoco_*` lands in the
 channel.)
 
-If you'd like to know what the `pixi run launch-mujoco` / `pixi run build`
-shortcuts you'll see in some scripts and READMEs actually do, jump to
+If you'd like to know what the `pixi run sim` / `pixi run build` commands
+you'll see in scripts and READMEs actually do, jump to
 [How-to → Workspace shortcuts with pixi](../how_to/use_pixi_tasks.md).

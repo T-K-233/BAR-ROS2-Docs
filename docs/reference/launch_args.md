@@ -165,8 +165,8 @@ in their own repos and register their own launch (see
 
 ## `humanoid_control_policy/launch/lite_tracking.launch.py` (alias)
 
-Thin pass-through wrapper around `lite_policy.launch.py`, kept for the
-`launch-policy-tracking` pixi alias and existing scripts.
+Thin pass-through wrapper around `lite_policy.launch.py`, kept for
+existing scripts that reference it by name.
 
 ## `pianist_policy/launch/piano_policy.launch.py`
 

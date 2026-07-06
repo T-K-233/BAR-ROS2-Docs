@@ -12,9 +12,9 @@ Every link points at the page with the full details.
 
 All commands below assume you've entered the workspace env (e.g.
 `cd humanoid_control_ws && pixi shell`) so `ros2`, `colcon`, and the Humanoid Control console
-scripts are on `PATH`. Looking for one-line aliases (`pixi run
-launch-mujoco`, `pixi run build`, …)?  See
-[How-to → Workspace shortcuts with pixi](../how_to/use_pixi_tasks.md).
+scripts are on `PATH`. Looking for the workspace tasks (`pixi run sim`,
+`pixi run build`, …) or the `hc` toolbox?  See
+[How-to → Workspace commands](../how_to/use_pixi_tasks.md).
 
 ## Launch invocations
 
