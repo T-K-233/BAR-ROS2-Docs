@@ -1,16 +1,45 @@
 ---
-title: CLI tools
+title: Diagnostics and utility commands
 ---
 
-# CLI tools
+# Diagnostics and utility commands
 
-Standalone executables shipped by `Humanoid Control`. The primary entry
-point is the unified `hc` CLI from `humanoid_control_cli` — `hc bus ping`,
-`hc bus discover`, `hc motor slider`, `hc viz rerun`, `hc viz
-viser`, `hc calibrate`. Every underlying executable is also
-reachable directly as `ros2 run <package> <executable>`; the `hc`
-CLI is a thin verb/noun wrapper that calls `os.execvp` on those
-same targets.
+Standalone executables shipped by `Humanoid Control`, and the workspace
+pixi tasks that wrap the common ones. Every tool is reachable as
+`ros2 run <package> <executable>` — that canonical form is what the
+per-tool sections below document. The frequently-used ones also have a
+workspace task (`pixi run ping-bus`, `pixi run scan-bus`, …), each a
+one-line wrapper over the same canonical command.
+
+:::note[The `hc` CLI was retired]
+Rev 1 of the workspace interface protocol shipped these tools behind a
+packaged `hc` CLI (`humanoid_control_cli`). Rev 2 dissolved it — the
+package is deleted. Its verbs became the workspace tasks in the table
+below, or, for rarely-used tools, plain documented `ros2 run` commands.
+See [How-to → Workspace commands](../how_to/use_pixi_tasks.md) for the
+task interface itself.
+:::
+
+## Task ↔ canonical command mapping
+
+| Former `hc` verb | Task (if any) | Canonical command |
+|---|---|---|
+| `hc bus ping` | `pixi run ping-bus` | `ros2 run humanoid_devices_robstride robstride_ping` |
+| `hc bus discover` | `pixi run scan-bus` | `ros2 run humanoid_devices_robstride robstride_discover` |
+| `hc bus probe` | `pixi run profile-bus` | `ros2 run humanoid_devices_robstride robstride_probe` |
+| `hc bus probe-report` | — | `ros2 run humanoid_devices_robstride robstride_probe_report` |
+| `hc motor slider` | — | `ros2 run humanoid_devices_robstride mit_slider_gui` |
+| `hc viz` | `pixi run viz` | `ros2 launch humanoid_bringup_lite viz.launch.py` (`viewer:=viser` default, `viewer:=rerun`) |
+| `hc viz viser` | — | `ros2 run humanoid_bringup_lite viser_viz` |
+| `hc viz rerun` | — | `ros2 run humanoid_bringup_lite rerun_viz` |
+| `hc viz urdf` | — | `ros2 launch humanoid_bringup_lite view_lite.launch.py` |
+| `hc calibrate` | `pixi run calibrate` | `ros2 launch humanoid_bringup_lite calibrate.launch.py` |
+
+Tasks forward trailing arguments verbatim
+(`pixi run ping-bus --iface can0 --id 11`). Commands without a task are
+deliberate — rarely-used tools get no alias. Run them inside
+`pixi shell` as plain `ros2 run …`, or from any terminal as
+`pixi run -- ros2 run …`.
 
 `humanoid_control_policy` and `pianist_policy` each ship a `prepare` console script
 (the launch-time policy-artifact prep step); `pianist_policy` also ships
@@ -22,9 +51,10 @@ These are normally driven by their launch files, but are reachable via
 
 | Executable | Package | Repo | What it does |
 |---|---|---|---|
-| `hc` (unified CLI) | `humanoid_control_cli` | Humanoid Control | Verb/noun entry point (`hc bus ping`, `hc bus discover`, `hc motor slider`, `hc viz rerun`, …). |
 | `robstride_ping` | `humanoid_devices_robstride` | Humanoid Control | Single-actuator probe (GetDeviceId / OperationStatus). Read-only. |
 | `robstride_discover` | `humanoid_devices_robstride` | Humanoid Control | Scan a CAN ID range, print every device that replies. Read-only. |
+| `robstride_probe` | `humanoid_devices_robstride` | Humanoid Control | Link RTT / jitter probe against one actuator. |
+| `robstride_probe_report` | `humanoid_devices_robstride` | Humanoid Control | Report companion for `robstride_probe` captures. |
 | `mit_slider_gui` | `humanoid_devices_robstride` | Humanoid Control | Qt slider window publishing Float64MultiArray to a forward_command_controller. |
 | `mode_manager` | `humanoid_controllers` | Humanoid Control | The FSM orchestrator. Normally launched by bringup; sometimes useful to start manually. |
 | `calibrate_robot` | `humanoid_bringup_lite` | Humanoid Control | Sample (min, max) per joint; write `calibration.yaml` on Ctrl+C. |
@@ -43,8 +73,8 @@ These are normally driven by their launch files, but are reachable via
 ros2 run humanoid_devices_robstride robstride_ping --iface can0 --id 11
 ros2 run humanoid_devices_robstride robstride_ping --iface can0 --id 11 --read-status
 
-# Equivalent via the unified CLI:
-hc bus ping --iface can0 --id 11
+# Equivalent one-line task wrapper:
+pixi run ping-bus --iface can0 --id 11
 ```
 
 | Arg | Default | Description |
@@ -69,8 +99,8 @@ ros2 run humanoid_devices_robstride robstride_discover --iface can0
 ros2 run humanoid_devices_robstride robstride_discover --iface can0 \
     --scan-from 1 --scan-to 127 --per-id-wait-ms 8
 
-# Equivalent via the unified CLI:
-hc bus discover --iface can0
+# Equivalent one-line task wrapper:
+pixi run scan-bus --iface can0
 ```
 
 | Arg | Default | Description |
@@ -91,6 +121,23 @@ with zero replies. Both are useful in CI.
 Used in: [How-to → Probe CAN bus](../how_to/probe_can_bus.md),
 [Hardware specs → Bus-bring-up checklist](./hardware_specs.md#bus-bring-up-checklist).
 
+### `robstride_probe` / `robstride_probe_report`
+
+```bash
+# Link RTT / jitter probe against one actuator:
+ros2 run humanoid_devices_robstride robstride_probe --iface can0 --id 11
+# Equivalent one-line task wrapper:
+pixi run profile-bus --iface can0 --id 11
+
+# Report companion — rarely used, no task:
+ros2 run humanoid_devices_robstride robstride_probe_report
+```
+
+`robstride_probe` measures round-trip latency and jitter on the
+command → reply path for a single actuator; `robstride_probe_report`
+renders the captured data into a report. The report tool is rarely
+used, so it deliberately has no task wrapper.
+
 ### `mit_slider_gui`
 
 ```bash
@@ -101,8 +148,8 @@ ros2 run humanoid_devices_robstride mit_slider_gui \
     --position-range -3.14 3.14 \
     --kp-range 0 10
 
-# Equivalent via the unified CLI:
-hc motor slider
+# Rarely used, no task — from outside `pixi shell`:
+pixi run -- ros2 run humanoid_devices_robstride mit_slider_gui
 ```
 
 | Arg | Default | Description |
@@ -161,7 +208,8 @@ ros2 run humanoid_bringup_lite calibrate_robot \
 | `--sweep-threshold` | `0.5` | Min sweep (rad) below which the prior `homing_offset` is preserved |
 
 Normally launched by `calibrate.launch.py` (which sets `--output`
-from a launch arg and brings up the rest of the stack). Standalone
+from a launch arg and brings up the rest of the stack) — that launch
+is what the `pixi run calibrate` task wraps. Standalone
 invocation is useful if you already have `real.launch.py` running
 with `calibration_file:=''`.
 
@@ -172,8 +220,9 @@ Used in: [How-to → Calibrate the zero pose](../how_to/calibrate_zero_pose.md).
 The two live-viewer executables. **On the tethered deployment they
 are spawned via `ros2 launch humanoid_bringup_lite viz.launch.py` on the
 operator workstation** (`viewer:=viser` by default; `viewer:=rerun`
-for the native window). Direct invocation is the single-machine
-sim/dev shortcut:
+for the native window) — that launch is what the `pixi run viz` task
+wraps. Direct invocation is the single-machine sim/dev shortcut (no
+task; run inside `pixi shell` or via `pixi run --`):
 
 ```bash
 ros2 run humanoid_bringup_lite rerun_viz       # native rerun window
@@ -208,6 +257,11 @@ For a tool that ships from one of the existing packages:
    `install(TARGETS ... RUNTIME DESTINATION ...)` lines.
 3. Rebuild with `colcon build --symlink-install --packages-select <package>`.
 4. Verify with `ros2 pkg executables <package>`.
+5. Only if the tool will be used often: add a one-line wrapper task to
+   the reference block in
+   [How-to → Workspace commands](../how_to/use_pixi_tasks.md#the-reference-block)
+   so every workspace inherits the same alias. Rarely-used tools stay
+   task-less by design.
 
 The `--symlink-install` flag means Python scripts edit-loop without
 rebuilding — useful while iterating.

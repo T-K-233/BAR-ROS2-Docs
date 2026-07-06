@@ -13,7 +13,7 @@ Every link points at the page with the full details.
 All commands below assume you've entered the workspace env (e.g.
 `cd humanoid_control_ws && pixi shell`) so `ros2`, `colcon`, and the Humanoid Control console
 scripts are on `PATH`. Looking for the workspace tasks (`pixi run sim`,
-`pixi run build`, …) or the `hc` toolbox?  See
+`pixi run build`, `pixi run ping-bus`, …)?  See
 [How-to → Workspace commands](../how_to/use_pixi_tasks.md).
 
 ## Launch invocations
@@ -109,24 +109,28 @@ ip -d link show can1
 
 ## Diagnostic CLIs
 
-These are the `hc` (humanoid_control_cli) verbs — equivalent `ros2 run humanoid_devices_robstride …`
-invocations are listed in [CLI tools](./cli_tools.md).
+These are the workspace utility tasks — one-line wrappers over the
+`ros2 run humanoid_devices_robstride …` invocations listed in
+[Diagnostics and utility commands](./cli_tools.md).
 
 ```bash
 # Scan an ID range; read-only, no Enable
-hc bus discover --iface can0 --scan-to 32
-hc bus discover --iface can1 --scan-to 32
+pixi run scan-bus --iface can0 --scan-to 32
+pixi run scan-bus --iface can1 --scan-to 32
 
 # One-shot GetDeviceId / OperationStatus probe
-hc bus ping --iface can0 --id 11
+pixi run ping-bus --iface can0 --id 11
 
-# Per-joint slider window (forward_command_controller frontend)
-hc motor slider
+# Per-joint slider window (forward_command_controller frontend; no task)
+ros2 run humanoid_devices_robstride mit_slider_gui
 
-# Live URDF + /lite/joint_states viewers (single-machine sim/dev shortcuts;
-# on the tethered host, prefer `ros2 launch humanoid_bringup_lite viz.launch.py`)
-hc viz viser                            # browser at :8080
-hc viz rerun                            # native rerun window
+# Live URDF + /lite/joint_states viewer — pixi run viz wraps this launch
+ros2 launch humanoid_bringup_lite viz.launch.py                  # viser, browser at :8080
+ros2 launch humanoid_bringup_lite viz.launch.py viewer:=rerun    # native rerun window
+
+# Single-machine sim/dev shortcuts for the raw viewer executables (no task)
+ros2 run humanoid_bringup_lite viser_viz
+ros2 run humanoid_bringup_lite rerun_viz
 ```
 
 ## Mode-FSM gamepad bindings (Xbox layout)

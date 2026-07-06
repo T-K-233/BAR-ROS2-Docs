@@ -60,7 +60,7 @@ from.
 
 **Recovery**:
 1. Confirm motors are powered:
-   `hc bus discover --iface canN`
+   `pixi run scan-bus --iface canN`
 2. Confirm wiring — wiggle the daisy chain connector at each motor.
 3. Restart the launch. `RX_TIMEOUT` clears on `on_activate` so a
    relaunch is sufficient; no power-cycle needed.
@@ -90,7 +90,7 @@ generic flag.
    every joint.
 2. If the fault persists, single-step diagnosis:
    ```bash
-   hc bus ping --iface canN --id <X> --read-status
+   pixi run ping-bus --iface canN --id <X> --read-status
    ```
    The reply's `fault_bits` byte tells you which specific sub-cause:
    - `bit 0` = overtemperature (also raised as `FLAG_TEMPERATURE_LIMIT`)
