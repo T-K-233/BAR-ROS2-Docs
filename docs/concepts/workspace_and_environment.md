@@ -22,8 +22,8 @@ or topic:
 
 | | **Tier 1 — ROS native** | **Tier 2 — workspace tooling** | **Tier 3 — separate project** |
 |---|---|---|---|
-| Location | `src/<pkg>/` | per-package `scripts/`, the `hc` CLI, a future top-level `scripts/` | its own git repo, outside the workspace |
-| Examples | `humanoid_controllers`, `humanoid_devices_robstride`, `humanoid_drivers_socketcan` | `robstride_probe`, calibration helpers, `hc bus ping` | `Lite-SDK2`, `Lite-Gravity-Compensation` |
+| Location | `src/<pkg>/` | per-package `scripts/`, the workspace pixi tasks, a future top-level `scripts/` | its own git repo, outside the workspace |
+| Examples | `humanoid_controllers`, `humanoid_devices_robstride`, `humanoid_drivers_socketcan` | `robstride_probe`, calibration helpers, `pixi run ping-bus` | `Lite-SDK2`, `Lite-Gravity-Compensation` |
 | Build / run | `colcon` + `ros2 run` | `pixi run …` | own toolchain (`uv run …`) |
 | Imports `rclpy`? | **yes** | no | **no** |
 | Talks to ROS via | native pub / sub / service / action | doesn't talk to running nodes | **DDS (CycloneDDS)** + file handoff |

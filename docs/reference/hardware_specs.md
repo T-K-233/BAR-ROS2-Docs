@@ -162,9 +162,9 @@ sudo ip link set can1 down 2>/dev/null
 sudo ip link set can1 up type can bitrate 1000000
 
 # 2. Read-only sanity scan — no Enable, no MIT.
-#    (the `hc` and `ros2` CLIs assume you've `cd humanoid_control_ws && pixi shell`'d.)
-hc bus discover --iface can0 --scan-to 32
-hc bus discover --iface can1 --scan-to 32
+#    (run from humanoid_control_ws; the `ros2` lines below assume `pixi shell`.)
+pixi run scan-bus --iface can0 --scan-to 32
+pixi run scan-bus --iface can1 --scan-to 32
 # Expect 7 + 7 = 14 actuators replying at ids 11..17 and 21..27.
 
 # 3. Calibrate the zero pose (once per physical robot).
@@ -175,7 +175,7 @@ ros2 launch humanoid_bringup_lite calibrate.launch.py
 ros2 launch humanoid_bringup_lite real.launch.py
 ```
 
-If `hc bus discover` reports `ENOBUFS` / TX-drop warnings, the actuator
+If `pixi run scan-bus` reports `ENOBUFS` / TX-drop warnings, the actuator
 power is off (no ACKs → frames pile up in the kernel qdisc). Power the
 motors first.
 

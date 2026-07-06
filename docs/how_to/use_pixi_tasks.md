@@ -1,26 +1,35 @@
 ---
 id: use_pixi_tasks
-title: Workspace commands (pixi tasks + hc)
-sidebar_label: Workspace commands (pixi + hc)
+title: Workspace commands (pixi tasks)
+sidebar_label: Workspace commands (pixi tasks)
 ---
 
-# Workspace commands (pixi tasks + hc)
+# Workspace commands (pixi tasks)
 
 The rest of this site documents commands in canonical `ros2 launch …` /
 `ros2 run …` form. Those work everywhere — Jetson, workstation, CI.
 
 On top of that, every Humanoid Control workspace exposes the same
-standardized command interface, organized in **three levels**:
+standardized command interface, organized in **two levels**:
 
 | Level | Commands | What it is |
 |---|---|---|
 | **1 — lifecycle tasks** | `setup` `build` `test` `clean` `doctor` | pixi tasks with reserved names *and* meanings — identical in every workspace |
-| **2 — product toolbox** | `hc bus` / `hc motor` / `hc viz` / `hc calibrate` | a packaged CLI on `PATH` — ships with the code, identical everywhere the stack is installed |
-| **3 — scenario tasks** | `sim` `real` `policy` (+ variants) | pixi tasks with reserved *names* — each workspace defines their scope |
+| **2 — workspace tasks** | `sim` `real` `policy` `deploy-sim` `deploy-real` `viz` `calibrate` + utility tasks (`ping-bus`, `scan-bus`, …) | pixi tasks with reserved names — each workspace declares the ones that apply to its stack |
 
 Discovery is built in: bare `pixi run` (or `pixi task list`) prints the
-workspace's task menu with descriptions, and bare `hc` prints the
-toolbox menu. This page explains each level and how to extend them.
+workspace's task menu with descriptions. This page explains each level
+and how to extend them.
+
+:::note[What happened to the `hc` CLI]
+Rev 1 of this interface had a third level: a packaged `hc` CLI (the
+`humanoid_control_cli` package) carrying diagnostics, viewers, and
+calibration verbs. Rev 2 retired it — the package is deleted, and its
+verbs became workspace tasks (`hc bus ping` → `pixi run ping-bus`,
+`hc viz` → `pixi run viz`, …) or plain documented `ros2 run` commands.
+The full mapping is in
+[Reference → Diagnostics and utility commands](../reference/cli_tools.md).
+:::
 
 :::tip[Why this layer exists]
 `pixi run build` is shorter than the colcon invocation it wraps, but the
@@ -42,9 +51,10 @@ pixi run doctor    # verifies the result; prints what to fix if unhealthy
 chains the `setup` task, which is idempotent and **cached**: it only
 re-executes when `humanoid_control.repos` changes or after a `clean`, so
 daily builds never touch the network. Nothing else auto-chains — in
-particular, **no scenario task ever triggers a build** (a hardware
-bringup must never start with a surprise rebuild; `doctor` is the
-staleness check).
+particular, **no scenario or utility task ever triggers a build** (a
+hardware bringup must never start with a surprise rebuild). If the
+workspace isn't built, those tasks fail with guidance pointing at
+`pixi run build`; `doctor` is the staleness check.
 
 ## Level 1 — lifecycle tasks
 
@@ -68,35 +78,15 @@ pre-push gate), `gen-dds`, `test-dds`. Colcon *style* flags
 `colcon build` inside `pixi shell` behaves identically to
 `pixi run build`.
 
-## Level 2 — the `hc` toolbox
+## Level 2 — workspace tasks
 
-Diagnostics, viewers, and calibration ship **with the code** as the
-`hc` CLI (`humanoid_control_cli`), not as per-workspace tasks — it is on
-`PATH` in any environment that has the stack, whether built from source
-or installed from the `berkeley-humanoids` binary channel:
+Reserved names; each workspace declares the ones that apply, scoped to
+its stack. Two vocabularies live here: **scenario tasks** and
+**utility tasks**.
 
-| Command | What it does |
-|---|---|
-| `hc bus ping` | single-actuator GetDeviceId ping (no Enable) |
-| `hc bus discover` | scan a CAN bus for Robstride device ids |
-| `hc bus probe` / `hc bus probe-report` | link RTT/jitter probe + report |
-| `hc motor slider` | live MIT-mode slider GUI against one motor |
-| `hc viz` | live state viewer of a running robot (`viewer:=viser` default, `viewer:=rerun`) |
-| `hc viz urdf` | static URDF/kinematic inspector — sliders + RViz, no robot needed |
-| `hc calibrate` | calibration bringup (writes `calibration.yaml`) |
+### Scenario tasks
 
-Every verb `execvp`s into the canonical `ros2 run` / `ros2 launch`
-command, so signals and trailing arguments pass straight through
-(`hc bus ping --iface can0 --id 11`). Run `hc help` for the menu.
-
-The scope rule: `hc` carries only commands whose **meaning is invariant
-across workspaces**. Anything whose scope depends on the workspace
-(`sim`, `real`, `policy`) is a task, level 3.
-
-## Level 3 — scenario tasks
-
-Reserved *names*; each workspace defines their scope. Grammar:
-`scenario[-qualifier]`, **at most one qualifier**, where the
+Grammar: `scenario[-qualifier]`, **at most one qualifier**, where the
 unqualified name is the workspace's default target. The qualifier
 encodes only the *primary* task variant; every secondary parameter
 (robot, backend, checkpoint, scene, …) stays a ROS launch argument:
@@ -105,6 +95,17 @@ encodes only the *primary* task variant; every secondary parameter
 pixi run sim-piano robot:=prime policy:=latest    # right
 pixi run sim-prime-piano-latest                   # wrong — name explosion
 ```
+
+The scenario words have **uniform semantics in every workspace**:
+
+- `sim` / `real` — **plant bringup only**: hardware or physics plus the
+  controller stack, **no policy**.
+- `policy` — prepare and load a policy against an already-running
+  plant.
+- `deploy-sim` / `deploy-real` — the **one-command pipeline**: bringup
+  *plus* policy in a single invocation.
+- `viz` — live state viewer of a running robot.
+- `calibrate` — calibration bringup.
 
 In `humanoid_control_ws` (scope = the base control stack; unqualified =
 Lite):
@@ -117,44 +118,137 @@ Lite):
 | `pixi run sim-piano` | `ros2 launch pianist_bringup mujoco.launch.py` |
 | `pixi run policy` | `ros2 launch humanoid_control_policy lite_policy.launch.py` |
 | `pixi run policy-piano` | `ros2 launch pianist_policy piano_policy.launch.py` |
+| `pixi run deploy-sim` | `ros2 launch humanoid_bringup_lite deploy.launch.py backend:=mujoco` |
+| `pixi run deploy-real` | `ros2 launch humanoid_bringup_lite deploy.launch.py backend:=real` |
+| `pixi run viz` | `ros2 launch humanoid_bringup_lite viz.launch.py` (`viewer:=viser` default, `viewer:=rerun`) |
+| `pixi run calibrate` | `ros2 launch humanoid_bringup_lite calibrate.launch.py` |
+
+The `deploy-*` tasks take the policy source as launch args
+(`wandb_run_path:=` or `checkpoint_file:=`); `deploy-real` additionally
+accepts `hardware_config:=` / `calibration_file:=` for the per-machine
+setup. The task `description` always states the scope; `pixi task list`
+shows it.
 
 In a deployment workspace (e.g.
 [Lite-Deployment](https://github.com/Berkeley-Humanoids/Lite-Deployment)),
-`sim` / `real` mean **the full task stack** — bringup plus policy in one
-command — because that is the workspace's reason to exist. The task
-`description` always states the scope; `pixi task list` shows it.
+`deploy-sim` / `deploy-real` are the same one-command pipeline —
+bringup plus policy — because that is the workspace's reason to exist.
+The scenario words never change meaning per workspace; a deployment
+repo that doesn't declare plant-only `sim` / `policy` tasks simply
+documents the canonical `ros2 launch` forms instead.
+
+### Utility tasks
+
+Frequently-used diagnostics get free kebab-case task names. Each one
+**must be a one-line wrapper** over its canonical `ros2 run` /
+`ros2 launch` command — no logic, no flags of its own:
+
+| Task | Wraps |
+|---|---|
+| `pixi run ping-bus` | `ros2 run humanoid_devices_robstride robstride_ping` |
+| `pixi run scan-bus` | `ros2 run humanoid_devices_robstride robstride_discover` |
+| `pixi run profile-bus` | `ros2 run humanoid_devices_robstride robstride_probe` |
+
+Rarely-used tools deliberately get **no task** — their canonical
+`ros2 run` / `ros2 launch` forms are documented instead (e.g.
+`robstride_probe_report`, `mit_slider_gui`, the standalone
+`viser_viz` / `rerun_viz` executables, `view_lite.launch.py`). See
+[Reference → Diagnostics and utility commands](../reference/cli_tools.md).
 
 ## Forwarding arguments
 
-Scenario tasks are thin, argument-less wrappers, so trailing launch
-arguments forward verbatim, the same way they do under raw
-`ros2 launch`:
+Tasks are thin, argument-less wrappers, so trailing arguments forward
+verbatim, the same way they do under the raw command:
 
 ```sh
 pixi run real enable_gamepad:=false
 pixi run real hardware_config:=$HOME/lite_hardware.jetson.yaml
+pixi run deploy-sim wandb_run_path:=entity/project/run-id
 pixi run policy checkpoint_file:=$HOME/model.onnx
-pixi run policy-piano wandb_run_path:=entity/project/run-id
+pixi run ping-bus --iface can0 --id 11
+pixi run scan-bus --iface can1 --scan-to 32
 ```
+
+## Escape hatches
+
+The tasks are shortcuts, not a wall. Two first-class ways out:
+
+- `pixi shell` — drop into the sourced environment and type plain
+  `ros2 launch …` / `ros2 run …` exactly as the launch-file docs show.
+- `pixi run -- ros2 run humanoid_devices_robstride mit_slider_gui` —
+  run *any* command inside the pixi-managed env from a vanilla
+  terminal, no task declaration needed.
+
+## The reference block
+
+The `viz`, `calibrate`, and bus-utility one-liners are meant to be
+**identical in every workspace** that carries the Lite stack. This TOML
+block is the copy source — paste it into a consumer workspace's
+`pixi.toml` verbatim rather than re-typing the wrappers, so
+`pixi run ping-bus` means exactly the same thing everywhere:
+
+```toml
+# --- Humanoid Control task reference block -------------------------------
+# Copy verbatim. Each task is a one-line wrapper over the canonical
+# command; trailing arguments forward verbatim.
+
+[tasks.viz]
+cmd = "ros2 launch humanoid_bringup_lite viz.launch.py"
+description = "Live state viewer of a running robot (viewer:=viser default, viewer:=rerun)"
+
+[tasks.calibrate]
+cmd = "ros2 launch humanoid_bringup_lite calibrate.launch.py"
+description = "Calibration bringup — writes calibration.yaml on Ctrl+C"
+
+[tasks.ping-bus]
+cmd = "ros2 run humanoid_devices_robstride robstride_ping"
+description = "Single-actuator GetDeviceId ping, read-only (--iface, --id)"
+
+[tasks.scan-bus]
+cmd = "ros2 run humanoid_devices_robstride robstride_discover"
+description = "Scan a CAN bus for Robstride device ids, read-only (--iface, --scan-to)"
+
+[tasks.profile-bus]
+cmd = "ros2 run humanoid_devices_robstride robstride_probe"
+description = "Link RTT / jitter probe against one actuator (--iface, --id)"
+```
+
+## Task lists per workspace
+
+`humanoid_control_ws` declares 25 tasks:
+
+- **Lifecycle (+ local extras)**: `setup` `build` `build-all` `test`
+  `test-result` `lint` `check` `clean` `doctor` `gen-dds` `test-dds`
+- **Scenario**: `sim` `real` `sim-prime` `real-prime` `sim-piano`
+  `policy` `policy-piano` `deploy-sim` `deploy-real` `viz` `calibrate`
+- **Utility**: `ping-bus` `scan-bus` `profile-bus`
+
+[Lite-Deployment](https://github.com/Berkeley-Humanoids/Lite-Deployment)
+declares: `setup` `build` `clean` `doctor` `deploy-sim` `deploy-real`
+`teleop`. (Its former `sim` / `real` tasks — which were the full
+bringup-plus-policy pipeline — are renamed `deploy-sim` /
+`deploy-real` under rev 2, freeing `sim` / `real` for their uniform
+plant-only meaning.)
 
 ## Adding a new command
 
 Decision rule, in order:
 
-1. **Invariant meaning everywhere** (a diagnostic, viewer, calibration
-   tool) — add an `hc` verb in `humanoid_control_cli`, never a task.
-2. **Scenario or workspace-local script** — add a task in that
-   workspace's `pixi.toml`, using the reserved scenario vocabulary
-   where it applies (`sim`, `real`, `policy`, plus at most one
-   `-qualifier` for the primary variant; secondary parameters stay
-   launch args), free kebab-case otherwise. Give it a `description` —
-   `pixi task list` is the menu.
+1. **A scenario** (bringup, policy, deploy, viz, calibrate) — use the
+   reserved vocabulary, plus at most one `-qualifier` for the primary
+   variant; secondary parameters stay launch args.
+2. **A frequently-used diagnostic or utility** — a free kebab-case
+   task that is a one-line wrapper over the canonical `ros2` command.
+   If it already exists in the reference block above, copy it from
+   there instead of re-typing it.
 3. **Operates on the workspace** (fetch, build, verify) — lifecycle
    task, universal names only.
 4. **Needs root or mutates host state** (CAN buses, kernel) — a script
    under `scripts/`, run explicitly with `sudo`, never a task.
-5. **Rarely used** — no alias at all; document the canonical
+5. **Rarely used** — no task at all; document the canonical
    `ros2 …` command.
+
+Give every task a `description` — `pixi task list` is the menu:
 
 ```toml
 [tasks.my-scenario]
@@ -164,7 +258,7 @@ description = "One line explaining scope and key launch args"
 
 ## Tradeoffs vs. plain `ros2 launch`
 
-When to use the tasks and `hc`:
+When to use the tasks:
 
 - One-off interactive bringups where you'll type the command often.
 - Operator runbooks — `pixi run real` reads more cleanly than the full

@@ -39,11 +39,14 @@ and the bus is acking. `ERROR-WARNING` is transient and self-recovers;
 
 ## Scan all IDs on a bus
 
+`scan-bus` is the workspace task wrapping
+`ros2 run humanoid_devices_robstride robstride_discover`; trailing
+args forward verbatim:
+
 ```bash
 cd humanoid_control_ws
-pixi shell
-hc bus discover --iface can0
-hc bus discover --iface can1
+pixi run scan-bus --iface can0
+pixi run scan-bus --iface can1
 ```
 
 Default scan range: 1..32. Sends one `GetDeviceId` per ID with 8 ms
@@ -68,11 +71,11 @@ on `can1` (right arm).
 
 ```bash
 # Default range is 1..32; widen if you suspect IDs outside that.
-hc bus discover --iface can0 \
+pixi run scan-bus --iface can0 \
     --scan-from 1 --scan-to 127
 
 # Tighter scan (faster) if you only want to check specific IDs:
-hc bus discover --iface can0 \
+pixi run scan-bus --iface can0 \
     --scan-from 11 --scan-to 17
 ```
 
@@ -81,7 +84,7 @@ hc bus discover --iface can0 \
 If the bus is slow / cheap-USB-adapter, raise `--per-id-wait-ms`:
 
 ```bash
-hc bus discover --iface can0 \
+pixi run scan-bus --iface can0 \
     --per-id-wait-ms 20
 ```
 
@@ -90,7 +93,7 @@ hc bus discover --iface can0 \
 When you know the ID and want a deeper status check:
 
 ```bash
-hc bus ping --iface can0 --id 11
+pixi run ping-bus --iface can0 --id 11
 # TX  GetDeviceId  id=...
 # RX  GetDeviceId reply  device=11  uid=...
 # stats: rx=1 tx=1 rx_dropped=0 tx_failed=0
@@ -101,11 +104,11 @@ With `--read-status` the ping briefly Enables, prompts an
 responds with calibrated-looking values:
 
 ```bash
-hc bus ping --iface can0 --id 11 --read-status
+pixi run ping-bus --iface can0 --id 11 --read-status
 # RX  OperationStatus  device=11  pos= 4.9200 rad  vel= 0.0  torque= 0.0  temp=24.0 C  fault_bits=0x00
 ```
 
-The `pos` value is **motor-frame, no calibration** (this CLI doesn't
+The `pos` value is **motor-frame, no calibration** (the probe doesn't
 load `calibration.yaml`). It's the raw absolute-encoder reading. If
 it's plausibly in `[-4π, 4π]` and the motor reports temp around room
 temp with `fault_bits=0x00`, the motor is healthy.
@@ -129,7 +132,7 @@ how you confirm `on_deactivate`'s Disable made it through.
 
 ## Common findings
 
-| `hc bus discover` reports | Likely cause |
+| `pixi run scan-bus` reports | Likely cause |
 |---|---|
 | `found : 0 actuator(s)` | Bus down, adapter unplugged, or motors not powered. Check `ip -d link` and the bench power. |
 | `found : N < expected` | Some motors are off the bus. Trace the daisy-chain — usually a connector. |

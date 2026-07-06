@@ -52,12 +52,12 @@ each motor.
 
 ```bash
 # Quick read-only probe to confirm motors are responding
-hc bus discover --iface can0
-hc bus discover --iface can1
+pixi run scan-bus --iface can0
+pixi run scan-bus --iface can1
 # Should report 7 motors on each bus, no ENOBUFS warnings in the output.
 ```
 
-If `hc bus discover` itself reports `tx_dropped > 0`, motors are
+If the scan itself reports `tx_dropped > 0`, motors are
 still off the bus. Don't proceed until that scan is clean.
 
 ## Step 2 — Check the kernel CAN state
@@ -157,8 +157,8 @@ bottleneck. Either drop the rate or upgrade the adapter.
 
 ```
 ENOBUFS warnings observed
-├── hc bus discover reports 0 motors → motor power off → fix power, relaunch
-├── hc bus discover reports motors but ENOBUFS persists at activation only
+├── pixi run scan-bus reports 0 motors → motor power off → fix power, relaunch
+├── pixi run scan-bus reports motors but ENOBUFS persists at activation only
 │   └── Burst-on-Enable. Drop activate-time WriteParameter calls (already done
 │       in our plugin via write_firmware_limits=false default). If recurring,
 │       raise txqueuelen or stagger Enables.

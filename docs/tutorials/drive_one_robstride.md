@@ -56,19 +56,20 @@ ip -d link show can0
 
 ```bash
 cd humanoid_control_ws
-pixi shell
-hc bus ping --iface can0 --id <X>
+pixi run ping-bus --iface can0 --id <X>
 # TX  GetDeviceId  id=...
 # RX  GetDeviceId reply  device=<X>  uid=...
 # stats: rx=1 tx=1 rx_dropped=0 tx_failed=0
 ```
 
-Replace `<X>` with the motor's configured ID (factory default 0x7F
-on new Robstride; vendor tool to reassign). If you don't know the
-ID, scan:
+(`ping-bus` is the workspace task wrapping
+`ros2 run humanoid_devices_robstride robstride_ping`; trailing args
+forward verbatim.) Replace `<X>` with the motor's configured ID
+(factory default 0x7F on new Robstride; vendor tool to reassign). If
+you don't know the ID, scan:
 
 ```bash
-hc bus discover --iface can0 --scan-to 127
+pixi run scan-bus --iface can0 --scan-to 127
 ```
 
 A clean reply confirms three things: the bus is up, the motor is
@@ -78,7 +79,7 @@ Enabled the motor yet — `GetDeviceId` is read-only.
 ## Step 4 — Read live status (still read-only)
 
 ```bash
-hc bus ping --iface can0 --id <X> --read-status
+pixi run ping-bus --iface can0 --id <X> --read-status
 # RX  OperationStatus  device=<X>  pos= ... rad  vel= 0.0  torque= 0.0  temp= ... C  fault_bits=0x00
 ```
 
@@ -90,9 +91,12 @@ re-ping, `pos` should change correspondingly.
 
 ## Step 5 — Launch the single-motor test stack
 
-`humanoid_devices_robstride` ships a self-contained launch for this:
+`humanoid_devices_robstride` ships a self-contained launch for this
+(enter the workspace env first — `pixi shell` — so `ros2` is on PATH):
 
 ```bash
+cd humanoid_control_ws
+pixi shell
 ros2 launch humanoid_devices_robstride single_robstride_gui.launch.py \
     can_id:=<X>
 ```
@@ -120,8 +124,12 @@ ros2 control list_controllers
 
 ## Step 6 — Slider GUI
 
+The slider GUI is a rarely-used tool, so it has no pixi task — run
+the canonical executable (from any terminal, `pixi run --` provides
+the env):
+
 ```bash
-hc motor slider
+pixi run -- ros2 run humanoid_devices_robstride mit_slider_gui
 ```
 
 A Qt window with five sliders (position, velocity, effort, kp, kd)
@@ -184,8 +192,8 @@ sudo ip link add dev vcan0 type vcan
 sudo ip link set up vcan0
 ```
 
-Then run the same `hc bus ping --iface vcan0` and
-`hc bus discover --iface vcan0`. You won't get replies
+Then run the same `pixi run ping-bus --iface vcan0` and
+`pixi run scan-bus --iface vcan0`. You won't get replies
 (nothing's listening), but the TX path lights up and you can see
 your own frames with `candump vcan0`. The single-motor launch will
 boot but report `RX_TIMEOUT` in `/safety_status`.

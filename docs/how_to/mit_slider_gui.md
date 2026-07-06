@@ -54,10 +54,13 @@ This brings up:
 - `zero_torque_controller` (active — safe default)
 - `forward_mit_controller` (loaded, **inactive**)
 
-In a second terminal, open the slider GUI:
+In a second terminal, open the slider GUI. It's a rarely-used tool,
+so it has no pixi task — run the canonical executable (plain
+`ros2 run …` inside a `pixi shell`, or via `pixi run --` from any
+terminal):
 
 ```bash
-hc motor slider
+pixi run -- ros2 run humanoid_devices_robstride mit_slider_gui
 ```
 
 A Qt window appears with five sliders (position, velocity, effort,

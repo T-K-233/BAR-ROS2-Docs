@@ -78,13 +78,11 @@ platforms = ["linux-64", "linux-aarch64"]
 # ROS 2 CLI + launch + runtime (ros2 launch / run / pkg). The bar packages
 # declare their library deps but not the CLI tooling, so pull a ROS base
 # yourself. Use ros-jazzy-desktop instead if you want the RViz-based
-# viewers (`hc viz urdf`, `view_lite.launch.py`).
+# viewers (`view_lite.launch.py`).
 ros-jazzy-ros-base = "*"
 # The whole Lite bringup: humanoid_controllers (ONNX-enabled), humanoid_control_msgs,
 # lite_description, humanoid_devices_robstride, humanoid_drivers_socketcan, humanoid_control_common, humanoid_control_policy.
 ros-jazzy-humanoid-control-bringup-lite = "*"
-# Optional: the `hc` toolbox CLI — lands on PATH (hc viz / hc bus ping / ...).
-ros-jazzy-humanoid-control-cli = "*"
 ```
 
 `berkeley-humanoids` is listed **first** so `ros-jazzy-humanoid-control-*` resolves from there, with
@@ -113,18 +111,22 @@ pixi run ros2 launch humanoid_bringup_lite real.launch.py
 RoboStack ROS core — no build step. Everything the packages ship (launch files,
 URDFs, meshes, controller YAMLs, console executables) lands on the ament index,
 so `ros2 launch …` / `ros2 run …` work inside `pixi shell` (or via
-`pixi run …`). The `hc` toolbox CLI installs a `bin/` shim, so `hc` itself
-is on `PATH` inside `pixi shell` (or via `pixi run -- hc …`).
+`pixi run -- ros2 …`).
 
 ```sh
 pixi shell
 ros2 pkg list | grep '^humanoid_control_'                              # the humanoid_control_* packages you pulled in
 ros2 launch humanoid_bringup_lite real.launch.py --show-args   # dry-parse the launch (no hardware)
-hc bus discover --iface can0 --scan-to 32              # read-only CAN scan, e.g.
+ros2 run humanoid_devices_robstride robstride_discover --iface can0 --scan-to 32   # read-only CAN scan, e.g.
 ```
 
+To get the standard one-word aliases (`pixi run scan-bus`,
+`pixi run viz`, …) in your own project, copy the task reference block
+from [How-to → Workspace commands](../how_to/use_pixi_tasks.md#the-reference-block)
+into your `pixi.toml`.
+
 :::note[What the channel ships today]
-`berkeley-humanoids` carries the **11 `ros-jazzy-humanoid-control-*` packages** for both `linux-64`
+`berkeley-humanoids` carries the **`ros-jazzy-humanoid-control-*` packages** for both `linux-64`
 and `linux-aarch64` (Jetson). That covers the full control stack and the
 real-hardware **Lite** bringup (`real.launch.py`). Not yet published: the MuJoCo
 simulation deps (`mujoco_*`), the piano task (`pianist_*`), and the EtherCAT /
@@ -216,7 +218,7 @@ and the compile-commands export come from `config/colcon-defaults.yaml` via
 `COLCON_DEFAULTS_FILE`, so the manual invocation behaves identically.)
 
 `pixi shell` sources the conda env and (via `scripts/activate.sh`) the
-`install/setup.sh` overlay once it exists, so `ros2`, `colcon`, `hc`, and every
+`install/setup.sh` overlay once it exists, so `ros2`, `colcon`, and every
 console script land on `PATH`. The build
 covers the Lite path (every Humanoid Control + Pianist package plus the three `mujoco_*`
 deps). `--symlink-install` means edits to launch / config / Python files are
@@ -228,18 +230,17 @@ re-sources the overlay whenever you enter `pixi shell`. Then run
 ### 5. Sanity-check
 
 ```sh
-ros2 pkg list | grep '^humanoid_control_'        # 12 entries from Humanoid Control
+ros2 pkg list | grep '^humanoid_control_'        # the humanoid_control_* packages
 ros2 pkg list | grep '^pianist_'    # 4 entries from pianist_ros2
 ros2 control list_hardware_interfaces 2>/dev/null \
     || echo "(no controller_manager running yet — expected)"
 ```
 
-The 11 `Humanoid Control` packages (Lite's `lite_description` comes separately, via `bar.repos`):
+The `Humanoid Control` packages (Lite's `lite_description` comes separately, via `bar.repos`):
 
 ```
 humanoid_bringup_lite
 humanoid_bringup_prime
-humanoid_control_cli
 humanoid_control_common
 humanoid_controllers
 humanoid_devices_robstride

@@ -46,15 +46,16 @@ acceptable; `BUS-OFF` means power-cycle the adapter.)
 
 ## Step 2 — Confirm motors are alive
 
-A read-only scan before anything claims the bus:
+A read-only scan before anything claims the bus (`scan-bus` is the
+workspace task wrapping
+`ros2 run humanoid_devices_robstride robstride_discover`):
 
 ```bash
 cd humanoid_control_ws
-pixi shell
-hc bus discover --iface can0 --scan-to 32
+pixi run scan-bus --iface can0 --scan-to 32
 # Expect 7 actuators at ids 11..17
 
-hc bus discover --iface can1 --scan-to 32
+pixi run scan-bus --iface can1 --scan-to 32
 # Expect 7 actuators at ids 21..27
 ```
 
@@ -66,6 +67,7 @@ warnings**, the actuators aren't powered — see
 ## Step 3 — Launch the bringup
 
 ```bash
+pixi shell    # enter the workspace env so ros2 is on PATH
 ros2 launch humanoid_bringup_lite real.launch.py
 ```
 

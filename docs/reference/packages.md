@@ -4,7 +4,7 @@ The control stack is split across **two sibling repos** that are
 cloned side-by-side under `humanoid_control_ws/src/`:
 
 - **[`Berkeley-Humanoids/humanoid_control`](https://github.com/Berkeley-Humanoids/humanoid_control)** —
-  12 packages making up the unified low-level control surface (URDF,
+  11 packages making up the unified low-level control surface (URDF,
   controllers including in-process ONNX inference, hardware plugins, the
   launch-time policy-prep tool, both Lite and Prime bringups), plus a
   pip-only `humanoid_control_msgs_dds` package for off-ROS (Tier-3) clients. No
@@ -195,19 +195,6 @@ the `rl_policy_controller` overlay that `humanoid_control_policy prepare` emits 
 never depends on `humanoid_control_policy` or any task message package.
 
 See [Controllers reference](controllers.md).
-
-### `humanoid_control_cli`
-
-The packaged product toolbox: a unified verb/noun CLI surface
-(`hc bus ping`, `hc bus discover`, `hc motor slider`, `hc viz`,
-`hc viz urdf`, `hc calibrate`). An ament_python package that thin-wraps
-the underlying executables shipped by `humanoid_devices_robstride` and
-`humanoid_bringup_lite`, and installs a `bin/` shim so `hc` is on `PATH`
-in any sourced overlay or conda env — invoke it directly once the
-workspace env is active. Scope: only verbs whose meaning is invariant
-across workspaces; scenario commands (`sim`, `real`, `policy`) are pixi
-tasks in each workspace — see
-[Workspace commands](../how_to/use_pixi_tasks.md).)
 
 ### `humanoid_control_policy`
 
