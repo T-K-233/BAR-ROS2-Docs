@@ -65,7 +65,7 @@ First, in one terminal, bring up the controller_manager (sim or
 hardware):
 
 ```bash
-pixi run launch-mujoco        # or: pixi run launch-real
+pixi run sim                  # or: pixi run real
 ```
 
 Then, in a second terminal (inside `pixi shell`), prepare + load the
