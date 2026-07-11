@@ -131,5 +131,5 @@ Limits are model-specific (rs-00..rs-06); see
 - [Reference → Hardware specs → MIT-mode command convention](../reference/hardware_specs.md#mit-mode-command-convention)
   — short-form repeat of the formula.
 - The protocol header in
-  [`humanoid_devices_robstride/robstride_protocol.hpp`](https://github.com/Berkeley-Humanoids/humanoid_control/blob/main/humanoid_devices/humanoid_devices_robstride/include/humanoid_devices_robstride/robstride_protocol.hpp)
+  [`humanoid_devices_robstride/robstride_protocol.hpp`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_devices/humanoid_devices_robstride/include/humanoid_devices_robstride/robstride_protocol.hpp)
   is the source-of-truth for the wire encoding.

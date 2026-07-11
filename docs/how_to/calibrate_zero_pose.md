@@ -179,4 +179,4 @@ ros2 launch humanoid_bringup_lite calibrate.launch.py sweep_threshold:=0.2
 - [Reference → Launch args](../reference/launch_args.md#humanoid_bringup_litelaunchcalibratelaunchpy)
   — the `output` and `sweep_threshold` args.
 - The `calibrate_robot` source is ~250 lines in
-  [`humanoid_bringup_lite/scripts/calibrate_robot.py`](https://github.com/Berkeley-Humanoids/humanoid_control/blob/main/humanoid_bringup_lite/scripts/calibrate_robot.py).
+  [`humanoid_bringup_lite/scripts/calibrate_robot.py`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_bringup_lite/scripts/calibrate_robot.py).

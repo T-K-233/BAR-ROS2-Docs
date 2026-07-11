@@ -110,8 +110,8 @@ per-`/lite/joint_states` callback + a tf update.
 
 ## See also
 
-- `rerun_viz` source: [`humanoid_bringup_lite/scripts/rerun_viz.py`](https://github.com/Berkeley-Humanoids/humanoid_control/blob/main/humanoid_bringup_lite/scripts/rerun_viz.py)
-- `viser_viz` source: [`humanoid_bringup_lite/scripts/viser_viz.py`](https://github.com/Berkeley-Humanoids/humanoid_control/blob/main/humanoid_bringup_lite/scripts/viser_viz.py)
-- `viz.launch.py` source: [`humanoid_bringup_lite/launch/viz.launch.py`](https://github.com/Berkeley-Humanoids/humanoid_control/blob/main/humanoid_bringup_lite/launch/viz.launch.py)
+- `rerun_viz` source: [`humanoid_bringup_lite/scripts/rerun_viz.py`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_bringup_lite/scripts/rerun_viz.py)
+- `viser_viz` source: [`humanoid_bringup_lite/scripts/viser_viz.py`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_bringup_lite/scripts/viser_viz.py)
+- `viz.launch.py` source: [`humanoid_bringup_lite/launch/viz.launch.py`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_bringup_lite/launch/viz.launch.py)
 - [Reference → Launch args](../reference/launch_args.md) — the
   `viz.launch.py` arg table (`viewer`, `joint_state_topic`).

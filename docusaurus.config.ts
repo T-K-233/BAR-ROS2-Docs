@@ -64,7 +64,7 @@ const config: Config = {
         {to: '/concepts/',             label: 'Concepts',        position: 'left'},
         {to: '/reference/packages',    label: 'Reference',       position: 'left'},
         {
-          href: 'https://github.com/Berkeley-Humanoids/humanoid_control',
+          href: 'https://github.com/Berkeley-Humanoids/humanoid_control_ros2',
           label: 'GitHub',
           position: 'right',
         },
@@ -103,7 +103,7 @@ const config: Config = {
           items: [
             {
               label: 'Humanoid Control on GitHub',
-              href: 'https://github.com/Berkeley-Humanoids/humanoid_control',
+              href: 'https://github.com/Berkeley-Humanoids/humanoid_control_ros2',
             },
             {
               label: 'Berkeley Humanoids',

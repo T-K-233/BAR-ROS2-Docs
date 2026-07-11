@@ -61,7 +61,7 @@ controllers — they don't see the split. Prime adds a third path through
 
 ## How the project is organized
 
-A single git repo at `Berkeley-Humanoids/humanoid_control`, a flat collection of ROS 2 packages
+A single git repo at `Berkeley-Humanoids/humanoid_control_ros2`, a flat collection of ROS 2 packages
 (franka_ros2 / Universal_Robots_ROS2_Driver pattern):
 
 ![Package organization](/img/diagrams/getting_started__intro__02.svg)

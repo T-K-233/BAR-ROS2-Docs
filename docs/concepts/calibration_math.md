@@ -141,6 +141,6 @@ URDF. The cost is that hand-edits to `id` / `direction` in
 ## See also
 
 - [How-to → Calibrate the zero pose](../how_to/calibrate_zero_pose.md) — the recipe.
-- [`RobstrideSystem` source](https://github.com/Berkeley-Humanoids/humanoid_control/blob/main/humanoid_devices/humanoid_devices_robstride/src/robstride_system.cpp#:~:text=load_calibration)
+- [`RobstrideSystem` source](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_devices/humanoid_devices_robstride/src/robstride_system.cpp#:~:text=load_calibration)
   — the loader + apply.
 - `humanoid_bringup_lite/scripts/calibrate_robot.py` — the formula in code.

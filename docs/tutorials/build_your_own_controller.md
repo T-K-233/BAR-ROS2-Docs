@@ -309,6 +309,6 @@ Read those in order — the complexity ramps up.
 
 - [`ControllerInterface` API docs](https://control.ros.org/master/doc/api/classcontroller__interface_1_1ControllerInterface.html).
 - [Reference → Controllers](../reference/controllers.md) — per-plugin parameters.
-- [`humanoid_control_common/loaned_interface_helpers.hpp`](https://github.com/Berkeley-Humanoids/humanoid_control/blob/main/humanoid_control_common/include/humanoid_control_common/loaned_interface_helpers.hpp)
+- [`humanoid_control_common/loaned_interface_helpers.hpp`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_control_common/include/humanoid_control_common/loaned_interface_helpers.hpp)
   — what `get_state` / `set_cmd` actually do (they wrap Jazzy's
   `[[nodiscard]]` migration helpers).

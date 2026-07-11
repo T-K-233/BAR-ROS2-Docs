@@ -151,6 +151,6 @@ interactions.
 
 ## See also
 
-- The GUI source: [`humanoid_devices_robstride/scripts/mit_slider_gui.py`](https://github.com/Berkeley-Humanoids/humanoid_control/blob/main/humanoid_devices/humanoid_devices_robstride/scripts/mit_slider_gui.py).
+- The GUI source: [`humanoid_devices_robstride/scripts/mit_slider_gui.py`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_devices/humanoid_devices_robstride/scripts/mit_slider_gui.py).
 - [Concepts → MIT command surface](../concepts/mit_command_surface.md) — what each slider does.
 - [Switch controllers without the FSM](./switch_controllers_manually.md).

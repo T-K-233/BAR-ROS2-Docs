@@ -188,8 +188,8 @@ and the architecture page below.
   metadata contract (`observation_names`, joint order, scales) the
   checkpoint freezes.
 - The C++ controller and modules:
-  [`humanoid_controllers/src/rl_policy_controller.cpp`](https://github.com/Berkeley-Humanoids/humanoid_control/blob/main/humanoid_controllers/src/rl_policy_controller.cpp),
+  [`humanoid_controllers/src/rl_policy_controller.cpp`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_controllers/src/rl_policy_controller.cpp),
   `observation_manager.hpp`, `reference_provider.hpp`, `action_mapper.hpp`,
   `onnx_policy.hpp`.
 - The launch:
-  [`humanoid_control_policy/launch/lite_policy.launch.py`](https://github.com/Berkeley-Humanoids/humanoid_control/blob/main/humanoid_control_policy/launch/lite_policy.launch.py).
+  [`humanoid_control_policy/launch/lite_policy.launch.py`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_control_policy/launch/lite_policy.launch.py).

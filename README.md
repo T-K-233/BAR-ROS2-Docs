@@ -1,6 +1,6 @@
 # Humanoid-Control-Website
 
-Documentation site for [Humanoid Control](https://github.com/Berkeley-Humanoids/humanoid_control),
+Documentation site for [Humanoid Control](https://github.com/Berkeley-Humanoids/humanoid_control_ros2),
 the Berkeley Humanoids low-level control stack. Built with [Docusaurus 3](https://docusaurus.io/).
 
 ## Develop

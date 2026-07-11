@@ -3,7 +3,7 @@
 The control stack is split across **two sibling repos** that are
 cloned side-by-side under `humanoid_control_ws/src/`:
 
-- **[`Berkeley-Humanoids/humanoid_control`](https://github.com/Berkeley-Humanoids/humanoid_control)** —
+- **[`Berkeley-Humanoids/humanoid_control_ros2`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2)** —
   11 packages making up the unified low-level control surface (URDF,
   controllers including in-process ONNX inference, hardware plugins, the
   launch-time policy-prep tool, both Lite and Prime bringups), plus a

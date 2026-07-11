@@ -165,7 +165,7 @@ git clone https://github.com/T-K-233/bar-ros2-project.git humanoid_control_ws
 cd humanoid_control_ws
 
 # first-party sources into src/ (gitignored by humanoid_control_ws)
-git clone https://github.com/Berkeley-Humanoids/humanoid_control.git      src/humanoid_control
+git clone https://github.com/Berkeley-Humanoids/humanoid_control_ros2.git      src/humanoid_control
 git clone https://github.com/T-K-233/pianist_ros2.git  src/pianist_ros2   # optional: piano task
 ```
 

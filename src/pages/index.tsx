@@ -6,7 +6,7 @@ import Heading from '@theme/Heading';
 
 import styles from './index.module.css';
 
-const GITHUB_URL = 'https://github.com/Berkeley-Humanoids/humanoid_control';
+const GITHUB_URL = 'https://github.com/Berkeley-Humanoids/humanoid_control_ros2';
 
 type Entry = {
   title: string;

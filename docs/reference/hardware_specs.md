@@ -238,7 +238,7 @@ silicon and sim with no URDF interface-tag rewrites.
 
 - [Architecture](../concepts/architecture.md) — how this hardware surface is
   consumed by ros2_control and the mode FSM.
-- [humanoid_control_lite_controllers.yaml](https://github.com/Berkeley-Humanoids/humanoid_control/blob/main/humanoid_controllers/config/humanoid_control_lite_controllers.yaml)
+- [humanoid_control_lite_controllers.yaml](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_controllers/config/humanoid_control_lite_controllers.yaml)
   — the canonical 17-joint binding for every controller.
-- [`humanoid_devices_robstride/include/humanoid_devices_robstride/robstride_system.hpp`](https://github.com/Berkeley-Humanoids/humanoid_control/blob/main/humanoid_devices/humanoid_devices_robstride/include/humanoid_devices_robstride/robstride_system.hpp)
+- [`humanoid_devices_robstride/include/humanoid_devices_robstride/robstride_system.hpp`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_devices/humanoid_devices_robstride/include/humanoid_devices_robstride/robstride_system.hpp)
   — the SystemInterface implementation for the Lite hardware path.

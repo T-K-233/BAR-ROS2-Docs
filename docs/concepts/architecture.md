@@ -335,7 +335,7 @@ deployed surface.
 
 ## Next
 
-- [`mode_manager` source](https://github.com/Berkeley-Humanoids/humanoid_control/blob/main/humanoid_controllers/src/mode_manager.cpp)
+- [`mode_manager` source](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_controllers/src/mode_manager.cpp)
   — the FSM is ~150 lines of C++; readable in one sitting.
 - [Lite 101](../getting_started/lite_101.md) — see all of this run end-to-end
   against mock hardware and MuJoCo.
