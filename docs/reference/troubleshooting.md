@@ -246,6 +246,72 @@ Coordinate the number with whoever owns domain allocation in your lab so
 two robots don't collide, and never run two `controller_manager`
 instances on one domain.
 
+## Sim ignores the gamepad and controllers won't activate (stale `robot_state_publisher`)
+
+**Diagnosis**: an orphaned `robot_state_publisher` from a *previous*
+bringup is still running, and the new `controller_manager` latched its
+**stale** `/robot_description` — so the wrong hardware plugin loaded
+and no controller can claim its interfaces. The robot ignores the
+gamepad, and even a hand `ros2 control switch_controllers` does nothing.
+
+**Why**: when a bringup's parent process dies without a clean shutdown
+— terminal closed, `kill -9` on the launcher, or the launch was
+backgrounded and its shell then exited — the child nodes don't die with
+it. On Linux they are re-parented to `systemd --user` and keep running.
+The one that bites is `robot_state_publisher`: it publishes
+`/robot_description` with **transient-local (latched)** QoS, so the old
+URDF stays live on the bus even though no attached process is minding it.
+
+Start a new bringup and its `controller_manager` subscribes to
+`/robot_description`. If it latches the *stale* description first, it
+loads the hardware component named there, then ignores the correct URDF
+your new launch publishes ("already loaded"). With the wrong hardware
+active, none of the new run's controllers can claim their interfaces, so
+nothing activates and the gamepad / switch commands look dead. It bites
+hardest when the previous run was a *different* robot variant than the
+one you're launching now (e.g. an arms bringup still latched while you
+start a biped one) — both write the same `/robot_description` topic.
+
+Telltale lines in the new launch log:
+
+```
+[ros2_control_node] Failed to find joint 'left_shoulder_pitch' in mujoco model  # an arm joint, on a biped run
+[resource_manager] Initialize hardware 'LiteHardware'   # you launched the biped -> expected 'LiteBipedHardware'
+[controller_manager] ResourceManager has already loaded a urdf. Ignoring attempt to reload a robot description.
+```
+
+**Confirm it** — look for an orphan older than your current run (or more
+than one copy), then check which hardware actually loaded:
+
+```bash
+pgrep -af robot_state_publisher   # a process much older than this run, or >1 copy
+pgrep -af mujoco_sim
+pgrep -af ros2_control_node
+ros2 control list_hardware_components   # name / joints must match the robot you launched
+```
+
+If the component name or its joints don't belong to the robot you just
+launched, you've latched a stale description.
+
+**Fix**: kill the orphans, then relaunch:
+
+```bash
+pkill -f robot_state_publisher
+pkill -f mujoco_sim            # add whatever else `pgrep` turned up
+# then start the bringup again, e.g. pixi run deploy-sim-biped
+```
+
+**Prevent**: always stop a bringup with **Ctrl-C in its own terminal**
+so `ros2 launch` propagates SIGINT and tears every child down cleanly
+(verified: a clean Ctrl-C leaves no orphans). Don't close the terminal,
+`kill -9` the launcher, or background the launch and then exit the shell.
+
+This is distinct from *A gamepad button (or a switch) doesn't change the
+controller* (there the button maps wrong but the controller loads fine)
+and *Controllers fail to load/configure on a fresh `controller_manager`*
+(there a second CM shares your domain): here the URDF itself is stale, so
+`ros2 control list_hardware_components` names the wrong robot.
+
 ## DDS discovery fails between launches and `ros2 topic ...`
 
 **Diagnosis**: `ROS_DOMAIN_ID` mismatch, or two `ros2 launch …`
