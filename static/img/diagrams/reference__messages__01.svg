@@ -13,33 +13,25 @@
   </defs>
   <rect width="100%" height="100%" fill="white"/>
 <text x="20" y="30" font-size="15" font-weight="700" text-anchor="start" fill="#111111" dominant-baseline="middle">humanoid_control_msgs pub/sub topology</text>
-<text x="20" y="48" font-size="11" font-weight="400" text-anchor="start" fill="#888888" dominant-baseline="middle">Who publishes / who subscribes for each of the 4 active topics</text><rect x="20" y="70" width="230" height="380" rx="8" ry="8" fill="#EEEEEE" stroke="#888888" stroke-width="1" stroke-dasharray="5 3"/>
+<text x="20" y="48" font-size="11" font-weight="400" text-anchor="start" fill="#888888" dominant-baseline="middle">Who publishes / who subscribes for each active topic</text><rect x="20" y="70" width="230" height="380" rx="8" ry="8" fill="#EEEEEE" stroke="#888888" stroke-width="1" stroke-dasharray="5 3"/>
 <text x="32" y="86" font-size="11" font-weight="600" text-anchor="start" fill="#888888" dominant-baseline="middle">Publishers</text><rect x="330" y="70" width="250" height="380" rx="8" ry="8" fill="#EEEEEE" stroke="#888888" stroke-width="1" stroke-dasharray="5 3"/>
 <text x="342" y="86" font-size="11" font-weight="600" text-anchor="start" fill="#888888" dominant-baseline="middle">Topics</text><rect x="660" y="70" width="240" height="380" rx="8" ry="8" fill="#EEEEEE" stroke="#888888" stroke-width="1" stroke-dasharray="5 3"/>
-<text x="672" y="86" font-size="11" font-weight="600" text-anchor="start" fill="#888888" dominant-baseline="middle">Subscribers</text><rect x="35" y="100" width="200" height="40" rx="6" ry="6" fill="#ffece2" stroke="#ff6633" stroke-width="1.5"/>
-<text x="135" y="120" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">StandbyController</text>
-<rect x="35" y="160" width="200" height="40" rx="6" ry="6" fill="#eef0f2" stroke="#5f6671" stroke-width="1.5"/>
-<text x="135" y="180" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">mode_manager</text>
-<rect x="35" y="220" width="200" height="40" rx="6" ry="6" fill="#FFE7E7" stroke="#A00000" stroke-width="1.5"/>
-<text x="135" y="240" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">Hardware plugins</text>
-<rect x="35" y="280" width="200" height="40" rx="6" ry="6" fill="#ffece2" stroke="#ff6633" stroke-width="1.5"/>
-<text x="135" y="300" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">Active policy ctrls</text>
-<rect x="35" y="340" width="200" height="40" rx="6" ry="6" fill="#eef0f2" stroke="#5f6671" stroke-width="1.5"/>
-<text x="135" y="360" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">humanoid_control_policy (Python)</text>
-<rect x="350" y="100" width="200" height="40" rx="6" ry="6" fill="#E7FFE7" stroke="#3B7A57" stroke-width="1.5"/>
-<text x="450" y="120" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">/standby_controller/state</text>
-<rect x="350" y="160" width="200" height="40" rx="6" ry="6" fill="#E7FFE7" stroke="#3B7A57" stroke-width="1.5"/>
-<text x="450" y="180" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">/control_mode</text>
-<rect x="350" y="220" width="200" height="40" rx="6" ry="6" fill="#E7FFE7" stroke="#3B7A57" stroke-width="1.5"/>
-<text x="450" y="240" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">/safety_status</text>
-<rect x="350" y="280" width="200" height="40" rx="6" ry="6" fill="#E7FFE7" stroke="#3B7A57" stroke-width="1.5"/>
-<text x="450" y="300" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">~/command (MITCommand)</text>
-<rect x="680" y="100" width="200" height="40" rx="6" ry="6" fill="#eef0f2" stroke="#5f6671" stroke-width="1.5"/>
-<text x="780" y="120" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">mode_manager</text>
-<rect x="680" y="160" width="200" height="40" rx="6" ry="6" fill="#EEEEEE" stroke="#888888" stroke-width="1.5"/>
-<text x="780" y="180" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">diagnostics / log</text>
-<rect x="680" y="220" width="200" height="40" rx="6" ry="6" fill="#eef0f2" stroke="#5f6671" stroke-width="1.5"/>
-<text x="780" y="240" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">mode_manager</text>
-<rect x="680" y="280" width="200" height="40" rx="6" ry="6" fill="#ffece2" stroke="#ff6633" stroke-width="1.5"/>
-<text x="780" y="300" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">RemotePolicyController</text>
-<line x1="130" y1="130" x2="350" y2="130" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><line x1="130" y1="200" x2="350" y2="190" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><line x1="130" y1="270" x2="350" y2="250" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><line x1="130" y1="380" x2="350" y2="310" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><line x1="560" y1="130" x2="680" y2="130" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><line x1="560" y1="190" x2="680" y2="190" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><line x1="560" y1="250" x2="680" y2="250" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><line x1="560" y1="310" x2="680" y2="310" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><text x="460" y="460" font-size="11" font-weight="400" text-anchor="middle" fill="#888888" dominant-baseline="middle">/standby_controller/state uses TRANSIENT_LOCAL QoS so a late mode_manager sees the last is_finished</text></svg>
+<text x="672" y="86" font-size="11" font-weight="600" text-anchor="start" fill="#888888" dominant-baseline="middle">Subscribers</text><rect x="35" y="110" width="200" height="40" rx="6" ry="6" fill="#ffece2" stroke="#ff6633" stroke-width="1.5"/>
+<text x="135" y="130" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">StandbyController</text>
+<rect x="35" y="200" width="200" height="40" rx="6" ry="6" fill="#FFE7E7" stroke="#A00000" stroke-width="1.5"/>
+<text x="135" y="220" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">Hardware plugins</text>
+<rect x="35" y="290" width="200" height="40" rx="6" ry="6" fill="#ffece2" stroke="#ff6633" stroke-width="1.5"/>
+<text x="135" y="310" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">policy source (ctrl / VLA)</text>
+<rect x="350" y="110" width="200" height="40" rx="6" ry="6" fill="#E7FFE7" stroke="#3B7A57" stroke-width="1.5"/>
+<text x="450" y="130" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">/standby_controller/state</text>
+<rect x="350" y="200" width="200" height="40" rx="6" ry="6" fill="#E7FFE7" stroke="#3B7A57" stroke-width="1.5"/>
+<text x="450" y="220" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">/safety_status</text>
+<rect x="350" y="290" width="200" height="40" rx="6" ry="6" fill="#E7FFE7" stroke="#3B7A57" stroke-width="1.5"/>
+<text x="450" y="310" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">~/command (MITCommand)</text>
+<rect x="680" y="110" width="200" height="40" rx="6" ry="6" fill="#EEEEEE" stroke="#888888" stroke-width="1.5"/>
+<text x="780" y="130" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">(none - telemetry)</text>
+<rect x="680" y="200" width="200" height="40" rx="6" ry="6" fill="#EEEEEE" stroke="#888888" stroke-width="1.5"/>
+<text x="780" y="220" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">(none - telemetry)</text>
+<rect x="680" y="290" width="200" height="40" rx="6" ry="6" fill="#ffece2" stroke="#ff6633" stroke-width="1.5"/>
+<text x="780" y="310" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">RemotePolicyController</text>
+<line x1="235" y1="130" x2="350" y2="130" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><line x1="550" y1="130" x2="680" y2="130" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><line x1="235" y1="220" x2="350" y2="220" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><line x1="550" y1="220" x2="680" y2="220" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><line x1="235" y1="310" x2="350" y2="310" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><line x1="550" y1="310" x2="680" y2="310" stroke="#888888" stroke-width="1.4" marker-end="url(#arrow-grey)"/><text x="460" y="462" font-size="11" font-weight="400" text-anchor="middle" fill="#888888" dominant-baseline="middle">ControlMode still ships in humanoid_control_msgs (DDS wire bridge); /control_mode is no longer published.</text><text x="460" y="476" font-size="11" font-weight="400" text-anchor="middle" fill="#888888" dominant-baseline="middle">Read the active mode from list_controllers. /standby_controller/state and /safety_status are telemetry.</text></svg>

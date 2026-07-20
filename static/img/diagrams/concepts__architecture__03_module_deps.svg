@@ -26,7 +26,7 @@
 <text x="645" y="107" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">pianist_policy</text>
 <text x="645" y="125" font-size="11" font-weight="400" text-anchor="middle" fill="#888888" dominant-baseline="middle">piano key-state</text><rect x="70" y="195" width="200" height="50" rx="6" ry="6" fill="#ffece2" stroke="#ff6633" stroke-width="1.5"/>
 <text x="170" y="212" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">humanoid_controllers</text>
-<text x="170" y="230" font-size="11" font-weight="400" text-anchor="middle" fill="#888888" dominant-baseline="middle">5 modes + mode_manager</text><rect x="310" y="195" width="200" height="50" rx="6" ry="6" fill="#eef0f2" stroke="#5f6671" stroke-width="1.5"/>
+<text x="170" y="230" font-size="11" font-weight="400" text-anchor="middle" fill="#888888" dominant-baseline="middle">5 mode controllers + MIT traj</text><rect x="310" y="195" width="200" height="50" rx="6" ry="6" fill="#eef0f2" stroke="#5f6671" stroke-width="1.5"/>
 <text x="410" y="212" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">humanoid_control_policy</text>
 <text x="410" y="230" font-size="11" font-weight="400" text-anchor="middle" fill="#888888" dominant-baseline="middle">ONNX runner (Python)</text><rect x="70" y="305" width="200" height="50" rx="6" ry="6" fill="#E7FFE7" stroke="#3B7A57" stroke-width="1.5"/>
 <text x="170" y="322" font-size="13" font-weight="600" text-anchor="middle" fill="#111111" dominant-baseline="middle">humanoid_devices_robstride</text>
