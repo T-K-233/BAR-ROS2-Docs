@@ -4,9 +4,27 @@ title: Recover from a fault
 
 # Recover from a fault
 
-`/safety_status` reports a non-OK level and `mode_manager` auto-DAMPs.
-What to do depends on which flag tripped. This page is the operator's
-runbook.
+`/safety_status` reports a non-OK level. Nothing auto-DAMPs on it
+anymore — `/safety_status` is **telemetry**, and reacting to it is the
+operator's job. What to do depends on which flag tripped. This page is
+the operator's runbook.
+
+## How recovery works now
+
+There are two independent mechanisms, and neither is the old
+`mode_manager` auto-DAMP node (that node is gone):
+
+- **Native controller fallback (automatic).** Each mode controller
+  declares `fallback_controllers: [damping_controller]`. If a
+  controller's `update()` returns ERROR, the controller_manager
+  deactivates it and activates its fallback — `damping_controller`,
+  which itself falls back to `zero_torque_controller`. This happens at
+  the controller_manager layer and is independent of `/safety_status`.
+- **Operator reaction to `/safety_status` (manual).** A hardware bus
+  fault is published on `/safety_status` as telemetry only — it does
+  **not** switch modes for you. When you see a non-OK level, switch to
+  STOP (gamepad `BACK` → `zero_torque_controller`) or DAMP (gamepad `X`
+  → `damping_controller`), or use `ros2 control switch_controllers`.
 
 ## Read the status first
 
@@ -133,29 +151,31 @@ EMI glitches; recurring means another device is sharing the bus.
 
 ## After fixing — what to do
 
-`mode_manager` doesn't auto-recover from DAMPING. Even after the
-fault clears, the FSM stays in DAMPING until the operator manually
-walks back up:
+There is no auto-recovery: after a fault you are sitting wherever you
+(or a controller fallback) last switched to — typically `zero_torque`
+(STOP) or `damping` (DAMP). Even once `/safety_status` returns to OK,
+nothing walks the robot back up for you.
 
 ```bash
-# /safety_status is now OK (level=0)
-# But mode_manager is still in DAMPING.
-# Walk back via the gamepad:
+# /safety_status is now OK (level=0), robot is in DAMPING or STOP.
+# Bring it back up when you're satisfied it's steady.
+# Via the gamepad:
 #  L1+A   →   STANDBY (Pose A)
 #  L1+B   →   STANDBY (Pose B)
+#  L1+Y   →   STANDBY (Pose Y)
 #  R1+A   →   LOCOMOTION
 #  R1+B   →   REMOTE
-# Or via the std_srvs/Trigger services:
-ros2 service call /humanoid_control/mode/load_a        std_srvs/srv/Trigger
-# (use /humanoid_control/mode/load_b for Pose B)
-ros2 service call /humanoid_control/mode/start_remote  std_srvs/srv/Trigger
+# Or from the CLI:
+ros2 control switch_controllers \
+    --activate   standby_controller_a \
+    --deactivate damping_controller
 ```
 
-Or via `ros2 control switch_controllers` directly.
-
-The reason for not auto-recovering: a fault that just cleared may
-re-occur. The operator should observe the robot in DAMPING for at
-least a few seconds, confirm it's actually steady, then proceed.
+Switching is flat, so you can go straight to whichever mode you want
+(see [Switch controllers manually](./switch_controllers_manually.md)).
+Still, observe the robot in DAMPING/STOP for a few seconds first: a
+fault that just cleared may re-occur, and you want to confirm it's
+actually steady before commanding motion.
 
 ## Soft-restart in code
 

@@ -39,14 +39,14 @@ instances, one per physical SocketCAN bus (`LiteLeftArm` claims CAN ids
 | `mode`                | `arms` | `arms` = 14 joints (default). `arms_neck` = 17 joints (requires neck silicon). |
 | `hardware_config`     | `<humanoid_bringup_lite share>/config/lite_hardware.yaml` | Per-machine bus + joint config. Maps the two `<ros2_control>` blocks to specific SocketCAN ifnames and joint IDs. Override to retarget a robot whose CAN ifnames differ. |
 | `calibration_file`    | `<humanoid_bringup_lite share>/config/calibration.yaml` | Absolute path to the per-physical-robot zero-offset YAML. Pass `''` for identity calibration (only the URDF `direction` sign flip applies, no offset). See [Hardware specs → Bus-bring-up checklist](./hardware_specs.md#bus-bring-up-checklist) for how to regenerate. |
-| `enable_mode_manager` | `true` | `false` skips spawning the FSM orchestrator. Used by `calibrate.launch.py` and for raw-debug bringups where the operator drives controllers directly via `ros2 control switch_controllers`. |
-| `enable_gamepad`      | `true`  | `true` spawns `joy_node` so `mode_manager` can read `/joy`. **The launch hard-fails on missing `joy_dev`.** Pass `false` on a keyboardless lab box to drive the FSM via the `/humanoid_control/mode/*` `std_srvs/Trigger` services instead. |
+| `enable_joy_teleop` | `true` | `true` spawns the `joy_teleop` node that maps gamepad buttons directly to `/controller_manager/switch_controller`. `false` skips it — used by `calibrate.launch.py` and raw-debug bringups where the operator drives controllers directly via `ros2 control switch_controllers`. |
+| `enable_gamepad`      | `true`  | `true` spawns `joy_node` so `joy_teleop` can read `/joy`. **The launch hard-fails on missing `joy_dev`.** Pass `false` on a keyboardless lab box and switch controllers directly with `ros2 control switch_controllers` instead. |
 | `joy_dev`             | `/dev/input/js0` | Path passed verbatim to `joy_node`'s `dev` parameter. Override when the onboard computer enumerates the gamepad as something other than `js0` (multiple gamepads plugged in, udev rename). The pre-launch check fails fast when the specific path is missing and lists any other `/dev/input/js*` devices it can see, so the error message tells you which override to pass. Ignored when `enable_gamepad:=false`. |
 
-The active-policy target is picked by the START button, not a launch
-arg (convention: A = local policy, B = remote): R1+A (`START_LOCOMOTION`)
-activates `rl_policy_controller` (the in-process learned policy —
-tracking / piano / locomotion), R1+B (`START_REMOTE`) activates
+The active-policy target is picked by the gamepad button, not a launch
+arg (convention: A = local policy, B = remote): R1+A activates
+`rl_policy_controller` (the in-process learned policy —
+tracking / piano / locomotion), R1+B activates
 `remote_policy_controller` (the System 1/2 external-command ingress —
 gravity-comp today, VLA later; see [Controllers](./controllers.md)).
 
@@ -80,7 +80,7 @@ upstream).
 ## `humanoid_bringup_lite/launch/calibrate.launch.py`
 
 Bundles `real.launch.py` with three overrides
-(`calibration_file:='' enable_mode_manager:='false' enable_gamepad:='false'`)
+(`calibration_file:='' enable_joy_teleop:='false' enable_gamepad:='false'`)
 and adds the `calibrate_robot` observer node. The plugin runs with identity
 calibration so `/lite/joint_states` carries `direction × raw_motor_pos`,
 which is the frame the homing-offset formula expects.
@@ -143,8 +143,8 @@ Prepares and loads the in-process tracking-family policy. It runs
 `humanoid_control_policy prepare` **synchronously** (resolve the ONNX, convert the
 LeRobot motion to a `.mcap` bag, emit the `rl_policy_controller`
 overlay), then spawns `rl_policy_controller` *inactive* with that
-overlay into the running controller_manager. The operator's
-`START_LOCOMOTION` (R1+A / `/humanoid_control/mode/start_locomotion`) activates it.
+overlay into the running controller_manager. The operator's R1+A button
+(via `joy_teleop`) activates it.
 There is no separate runner process; the task is selected by the ONNX
 `task_type` metadata.
 
@@ -253,14 +253,14 @@ ros2 launch pianist_bringup mujoco.launch.py
 ros2 launch humanoid_bringup_lite calibrate.launch.py
 ```
 
-**Robot onboard computer** (CM + hardware + FSM + gamepad — boots
+**Robot onboard computer** (CM + hardware + joy_teleop + gamepad — boots
 the real control plane, no visualisers, no policy runner):
 
 ```sh
-# Real Lite, gamepad on by default. Press R1+B at STANDBY to start the remote policy.
+# Real Lite, gamepad on by default. Press R1+B to activate the remote policy.
 ros2 launch humanoid_bringup_lite real.launch.py
 
-# Same, but on a keyboardless lab box (drive the FSM via /humanoid_control/mode/* services).
+# Same, but on a keyboardless lab box (switch controllers via ros2 control switch_controllers).
 ros2 launch humanoid_bringup_lite real.launch.py enable_gamepad:=false
 
 # Gamepad enumerated as js1 instead of js0 (multiple controllers plugged in).

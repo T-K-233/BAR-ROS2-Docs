@@ -72,19 +72,22 @@ ros2 launch humanoid_bringup_lite real.launch.py
 ```
 
 Default args: `mode:=arms hardware_config:=<bundled lite_hardware.yaml>
-calibration_file:=<bundled> enable_mode_manager:=true
+calibration_file:=<bundled> enable_joy_teleop:=true
 enable_gamepad:=true joy_dev:=/dev/input/js0`. The `hardware_config`
 YAML provides the per-machine bus + joint mapping (left arm on `can0`
 with ids 11..17, right arm on `can1` with ids 21..27 on the
 development robot). The default `enable_gamepad:=true` hard-fails if
 the resolved `joy_dev` path is missing; the error message lists any
 other `/dev/input/js*` devices it can see so you can override with
-`joy_dev:=/dev/input/jsN`. Pass `enable_gamepad:=false` on a
-keyboardless lab box to use the `/humanoid_control/mode/*` services instead.
+`joy_dev:=/dev/input/jsN`. Pass `enable_gamepad:=false` (or
+`enable_joy_teleop:=false`) on a keyboardless lab box and switch
+controllers with `ros2 control switch_controllers` directly instead
+(see [Switch controllers manually](./switch_controllers_manually.md)).
 
 `real.launch.py` boots the **onboard-computer side** of the tethered
-deployment split: hardware plugins, FSM controllers, `mode_manager`,
-gamepad. Visualisers (`ros2 launch humanoid_bringup_lite viz.launch.py`)
+deployment split: hardware plugins, the control-mode controllers, the
+`joy_teleop` button mapper, and the gamepad driver. Visualisers
+(`ros2 launch humanoid_bringup_lite viz.launch.py`)
 and policy runners (`ros2 launch humanoid_control_policy lite_policy.launch.py …`)
 live on the operator workstation — matching `ROS_DOMAIN_ID` is enough
 for them to see each other. See
@@ -153,9 +156,10 @@ End in a known-safe state:
 Ctrl+C
 ```
 
-`mode_manager` (if enabled) and every controller's `on_deactivate`
-runs, then `RobstrideSystem::on_deactivate` sends `Disable` to every
-motor. The bus goes quiet within a tick; `candump can0` will confirm.
+The `joy_teleop` node (if enabled) and every controller's
+`on_deactivate` run, then `RobstrideSystem::on_deactivate` sends
+`Disable` to every motor. The bus goes quiet within a tick;
+`candump can0` will confirm.
 
 ## Common boot-time failures
 
@@ -175,5 +179,5 @@ Wider diagnostics live in [Troubleshooting](../reference/troubleshooting.md).
   look offset.
 - [Switch controllers manually](./switch_controllers_manually.md) to
   exercise DAMPING / STANDBY without the gamepad.
-- [MuJoCo + full FSM walkthrough](../tutorials/mujoco_fsm_walk.md) to
-  walk the same flow with the FSM in the loop.
+- [MuJoCo mode walkthrough](../tutorials/mujoco_fsm_walk.md) to
+  walk the same control-mode flow in simulation.

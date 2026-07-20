@@ -1,13 +1,20 @@
 # Controllers + FSM
 
-Five `controller_interface::ControllerInterface` plugins, one standalone
-`rclcpp::Node` orchestrator. **Only one mode controller is active at a time**;
-`joint_state_broadcaster` runs always.
+Five `controller_interface::ControllerInterface` plugins. Mode switching is
+**flat**: the stock `joy_teleop` node (ROS `teleop_tools`) maps gamepad
+buttons **directly** to `/controller_manager/switch_controller` — there is no
+arbitrating state machine or `mode_manager` node anymore. **Only one mode
+controller is active at a time**; `joint_state_broadcaster` runs always.
 
 ## FSM summary
 
-See [Concepts → Architecture](../concepts/architecture.md#five-mode-finite-state-machine)
-for the annotated version including safety-fault edges.
+The five modes still exist as controllers, but there is **no finite-state
+machine** arbitrating them: any mode can be entered from any other, in any
+order (e.g. `ZERO_TORQUE → LOCOMOTION` directly). Switching is done by
+`joy_teleop` (gamepad) or `ros2 control switch_controllers` (CLI); each button
+activates one controller and deactivates its siblings with `BEST_EFFORT`
+strictness. See [Concepts → Architecture](../concepts/architecture.md#five-mode-finite-state-machine)
+for the mode overview.
 
 ## Plugin-by-plugin
 
@@ -54,43 +61,52 @@ resistance.
 
 ### `humanoid_control/StandbyController`
 
-**Role**: linearly interpolate joint positions through a pose sequence; ramp
-`K_p / K_d` from `0` to target gains during the **first** segment so
-activation never snaps.
+**Role**: linearly interpolate joint positions through a pose sequence toward a
+ready pose. Gains are **constant at the target `K_p / K_d` from `t = 0`** —
+there is **no gain ramp**. On activation the setpoint is **seeded to the
+current measured joint positions** and interpolated from there, so entering
+STANDBY is safe from **any** prior state (no snap).
 
-**Instances**: spawned **twice** — `standby_controller_a` (Pose A, loaded by
-`L1+A` / `/humanoid_control/mode/load_a`) and `standby_controller_b` (Pose B,
-loaded by `L1+B` / `/humanoid_control/mode/load_b`). Same plugin class (and same
-`standby_controller.cpp`), different pose parameters in the bringup YAML.
+**Instances**: spawned **once per configured pose** — `standby_controller_a`
+(Pose A, `L1+A`) and `standby_controller_b` (Pose B, `L1+B`); the Lite arms
+config adds a third, `standby_controller_y` (Pose Y, `L1+Y`). Same plugin class
+(and same `standby_controller.cpp`), different pose parameters in the bringup
+YAML. Each is activated directly by its gamepad button (via `joy_teleop`) or by
+`ros2 control switch_controllers`.
 
 **Parameters**:
 
 | Param | Type | Description |
 |---|---|---|
 | `joints` | `string[]` | Required. |
-| `target_stiffness` | `float64[]` | Per-joint target `K_p` when ramp finishes. |
-| `target_damping` | `float64[]` | Per-joint target `K_d`. |
+| `target_stiffness` | `float64[]` | Per-joint target `K_p` (constant, held from activation). |
+| `target_damping` | `float64[]` | Per-joint target `K_d` (constant, held from activation). |
 | `segment_durations` | `float64[]` | Seconds per pose segment. Length determines how many pose segments are expected. |
 | `pose_segment_<i>` | `float64[]` | Per-segment target pose vector; one parameter per segment index in `[0, len(segment_durations))`. Each is a per-joint position array sized to `len(joints)`. |
 
-**Publishes**: `~/state` (`humanoid_control_msgs/StandbyState`) with `TRANSIENT_LOCAL` QoS
-so `mode_manager` sees `is_finished` even on late join — i.e.
-`/standby_controller_a/state` and `/standby_controller_b/state`, one per instance.
-Watch the one matching the pose you loaded.
+**Publishes**: `~/state` (`humanoid_control_msgs/StandbyState`) with `TRANSIENT_LOCAL` QoS —
+i.e. `/standby_controller_a/state`, `/standby_controller_b/state` (and
+`/standby_controller_y/state` on Lite), one per instance. This is **telemetry
+only**: `is_finished` reports progress but **nothing gates on it** anymore (any
+transition is allowed from any state). Watch the one matching the pose you
+activated.
 
 :::tip[How the bundled config interpolates]
-`humanoid_control_lite_controllers.yaml` configures **both instances** with
-**two segments** each: `pose_segment_0` is the zero-pose (where the robot
-starts) and `pose_segment_1` is that instance's target pose —
-`standby_controller_a` and `standby_controller_b` differ only in this final
-pose (Pose A vs Pose B). A LOAD_A / LOAD_B intent therefore animates the arms
-from zero to the chosen pose over two 2-second segments while ramping `K_p` /
-`K_d` from 0 to the target gains during the first segment.
+`humanoid_control_lite_controllers.yaml` configures each instance with **two
+segments**, where the final `pose_segment` is that instance's target pose — the
+standby instances differ only in this final pose (Pose A vs Pose B vs Pose Y).
+Activating a standby button therefore animates the arms from their **current
+measured position** to the chosen pose over the configured segments, holding the
+target `K_p` / `K_d` constant the whole time (no gain ramp).
 :::
 
 `fallback_controllers: ["damping_controller"]` is set on the
 controller-manager side so any non-`OK` `return_type` from `update()`
-auto-deactivates Standby and activates Damping.
+auto-deactivates Standby and activates Damping. This native
+`fallback_controllers` mechanism — declared on every mode controller
+(`damping_controller` in turn falls back to `zero_torque_controller`) — is now
+the **only** automatic fault response; there is no `/safety_status`-driven
+auto-DAMP node anymore (`/safety_status` is telemetry the operator reacts to).
 
 ### `humanoid_control/RLPolicyController`
 
@@ -101,7 +117,8 @@ runs *every* learned policy (tracking / piano / locomotion). Each RT
 (`ReferenceProvider`), maps the action across the full articulation
 (`ActionMapper`), and writes the five MIT command interfaces — never
 leaving the RT thread. Policies differ only by the loaded `.onnx` +
-`.mcap`; the ONNX `task_type` metadata selects the term set.
+`.mcap`; the ONNX `task_type` metadata selects the term set. It is entered
+**directly at full authority** — there is no soft-start ramp.
 
 Its parameters come from the `rl_policy_controller` overlay that
 `humanoid_control_policy prepare` (or `pianist_policy prepare`) transcodes from the
@@ -124,8 +141,9 @@ ONNX `custom_metadata_map` — they are not hand-written:
 `OnnxPolicy` (onnxruntime C++) is built only when onnxruntime is found at
 build time — the conda `onnxruntime-cpp` package, pinned in `pixi.toml`.
 Without it the controller falls
-back to `PlaceholderPolicy` (zeros) — useful for smoke-testing the FSM and
-the observation/reference plumbing without a real inference dependency.
+back to `PlaceholderPolicy` (zeros) — useful for smoke-testing controller
+switching and the observation/reference plumbing without a real inference
+dependency.
 The contract (`PolicyMetadata` → overlay) is identical either way. See
 [Policy runner](policy_runner.md).
 :::
@@ -163,56 +181,47 @@ rather than hand-writing message mirrors — see
 [Policy runner](policy_runner.md) for how the in-process learned-policy
 path relates.
 
-### `mode_manager` (executable)
+### `joy_teleop` (gamepad → controller switch)
 
-**NOT a controller plugin** — a regular `rclcpp::Node` compiled as the
-`humanoid_controllers/mode_manager` executable.
+**NOT a controller plugin** — the stock `joy_teleop` node from ROS
+`teleop_tools` (built from source via `humanoid_control.repos`, since
+`teleop_tools` isn't in robostack-jazzy). It **replaces** the old
+`mode_manager` executable: instead of a state machine, it maps each gamepad
+button **directly** to a `/controller_manager/switch_controller` call,
+configured entirely by YAML (`joy_teleop_lite.yaml` / `joy_teleop_biped.yaml` /
+`joy_teleop_prime.yaml`). The button map follows `qiayuanl/unitree_bringup`'s
+`config/g1/joy.yaml`.
 
-| Input | Topic / source | Purpose |
-|---|---|---|
-| Gamepad | `/joy` (`sensor_msgs/Joy`) | DAMP / LOAD / START_LOCOMOTION / START_REMOTE / QUIT intents |
-| Standby done | `/standby_controller_a/state` or `/standby_controller_b/state` (`StandbyState`) | gate the START intents on `is_finished` (watch the loaded pose's instance) |
-| Safety | `/safety_status` (`SafetyStatus`) | auto-fall to DAMPING on non-OK |
-| Trigger services | `/humanoid_control/mode/{damp,load_a,load_b,start_remote,start_locomotion,quit}` (`std_srvs/Trigger`) | same intents from the command line |
+Each button **activates one controller and deactivates its siblings**, with
+`strictness: BEST_EFFORT`. There is **no gating and no ordering** — any mode
+can be entered from any state (e.g. `ZERO_TORQUE → LOCOMOTION` directly, with
+no intermediate STANDBY).
 
-| Output | Topic | Purpose |
-|---|---|---|
-| FSM state | `/control_mode` (`ControlMode`) | 50 Hz telemetry |
-| Mode switch | `/controller_manager/switch_controller` | the actual transition |
+**Button map** (per variant; ✓ = bound, — = not present):
 
-**Joy bindings** (Xbox-layout defaults — remap via the `joy.*` params):
+| Buttons | Activates | Lite arms | Biped | Prime |
+|---|---|---|---|---|
+| `X` | `damping_controller` (DAMP) | ✓ | ✓ | ✓ |
+| `L1+A` | `standby_controller_a` (STANDBY A) | ✓ | ✓ | ✓ |
+| `L1+B` | `standby_controller_b` (STANDBY B) | ✓ | — | ✓ |
+| `L1+Y` | `standby_controller_y` (STANDBY Y) | ✓ | — | — |
+| `R1+A` | `rl_policy_controller` (LOCOMOTION) | ✓ | ✓ | ✓ |
+| `R1+B` | `remote_policy_controller` (REMOTE) | ✓ | — | ✓ |
+| `BACK` | `zero_torque_controller` (STOP) | ✓ | ✓ | ✓ |
 
-| Buttons | Intent | Target |
-|---|---|---|
-| `X` (2) | DAMP | `damping_controller` |
-| `L1+A` (4+0) | LOAD_A | `standby_controller_a` (Pose A) |
-| `L1+B` (4+1) | LOAD_B | `standby_controller_b` (Pose B) |
-| `R1+A` (5+0) | START_LOCOMOTION | `rl_policy_controller` |
-| `R1+B` (5+1) | START_REMOTE | `remote_policy_controller` |
-| `BACK` (6) | QUIT | `rclcpp::shutdown()` |
+`BACK` (STOP) selects `zero_torque_controller`, which holds zero torque with
+the drives **still enabled** — it is not a shutdown. There is no sequenced
+QUIT / button power-down anymore; CAN `Disable` still fires on `Ctrl+C` via the
+hardware `on_deactivate`.
 
-The two LOAD combos load **different poses** (`standby_controller_a` vs
-`standby_controller_b`); the two START combos pick the **policy**. The two
-axes are independent — from either standby pose you can start either policy
-(`R1+A` → LOCOMOTION, `R1+B` → REMOTE), so `L1+A → R1+B` is just as valid as
-`L1+A → R1+A`. The only constraint is that you cannot switch A↔B directly:
-`LOAD` is admissible only from DAMPING, so to change pose you DAMP first,
-then load the other pose.
-
-**Parameters**:
-
-| Param | Type | Default | Description |
-|---|---|---|---|
-| `tick_rate_hz` | `float64` | `50.0` | timer rate |
-| `controller_manager` | `string` | `/controller_manager` | CM namespace |
-| `joy.damp_button` | `int` | `2` | DAMP button index |
-| `joy.quit_button` | `int` | `6` | QUIT button index |
-| `joy.load_combo_a` | `int[]` | `[4, 0]` | LOAD_A combo (L1+A → Pose A) |
-| `joy.load_combo_b` | `int[]` | `[4, 1]` | LOAD_B combo (L1+B → Pose B) |
-| `joy.start_combo_locomotion` | `int[]` | `[5, 0]` | START_LOCOMOTION combo (R1+A) |
-| `joy.start_combo_remote` | `int[]` | `[5, 1]` | START_REMOTE combo (R1+B) |
+Programmatic or headless control skips `joy_teleop` and calls the same service
+directly, e.g. `ros2 control switch_controllers --activate standby_controller_a
+--deactivate zero_torque_controller`. The currently active mode is read back
+from `/controller_manager/list_controllers` (there is no `/control_mode`
+topic anymore).
 
 ## Spawn order (in launch)
 
-The launch spawns `zero_torque_controller` active independently — so even if
-`mode_manager` dies, the robot is in the safe state.
+The launch spawns `zero_torque_controller` active independently — so the robot
+boots into the safe zero-torque state regardless of whether `joy_teleop` is
+running (`enable_joy_teleop:=false` skips it entirely).

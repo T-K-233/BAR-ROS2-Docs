@@ -5,11 +5,21 @@ sidebar_position: 2
 
 # Tutorial: MuJoCo + the full FSM, with a gamepad
 
-A guided lesson on the five-mode FSM. You'll bring up Lite in MuJoCo,
-plug in a gamepad, and walk every transition the FSM supports.
-Because this is sim, no hardware can be damaged — push every button
-and see what happens. By the end you'll know what each mode looks
-like under physics and how the FSM gates work.
+A guided lesson on the five control modes. You'll bring up Lite in
+MuJoCo, plug in a gamepad, and drive every mode from the buttons.
+
+Switching is **flat and direct**: the stock `joy_teleop` node maps each
+gamepad button straight to a `controller_manager/switch_controller`
+call — activate one mode controller, deactivate its siblings. There is
+**no state machine, no ordering, no gating**. Any mode reachable from
+any state: you can jump straight from ZERO_TORQUE into LOCOMOTION, or
+from a running policy back to STANDBY, in a single button press.
+(The "FSM" in this page's title is historical; the five modes are the
+same, only the arbitration is now this flat mapping.)
+
+Because this is sim, no hardware can be damaged — push every button and
+see what happens. By the end you'll know what each mode looks like
+under physics.
 
 This is **the** tutorial to do before any operator-driven session
 on real hardware.
@@ -50,11 +60,15 @@ If `joy_node` errors with permissions, your user isn't in the
 ros2 launch humanoid_bringup_lite mujoco.launch.py
 # `enable_gamepad:=true` is already the default; the launch hard-fails
 # if no joystick is detected. Pass enable_gamepad:=false to bypass.
+# `enable_joy_teleop:=true` is also default — it starts the joy_teleop
+# node that maps buttons → switch_controller. Pass
+# enable_joy_teleop:=false to bring the stack up with no button bindings.
 ```
 
 Two windows / processes come up:
 - The MuJoCo viewer with Lite at zero pose.
-- `joy_node` reading `/dev/input/js0`.
+- `joy_node` reading `/dev/input/js0`, and `joy_teleop` translating its
+  buttons into controller switches.
 
 For an extra live URDF view, open a second terminal and run
 `ros2 run humanoid_bringup_lite rerun_viz` or
@@ -67,33 +81,33 @@ cd humanoid_control_ws
 pixi shell
 ros2 control list_controllers
 # zero_torque_controller       active
-# (the four other FSM controllers loaded inactive)
-
-ros2 topic echo /control_mode
-# mode: 0  (ZERO_TORQUE)
-# controller_name: zero_torque_controller
+# (the other mode controllers loaded inactive)
 ```
 
-Leave the `/control_mode` echo open — you'll watch it for every
-transition.
+There is no `/control_mode` topic — the active mode *is* whichever
+controller `ros2 control list_controllers` reports as `active`. Keep
+that command handy and re-run it after every button press to watch the
+mode change.
 
-## Step 2 — Mode 1: ZERO_TORQUE (start state)
+## Step 2 — Mode: ZERO_TORQUE (start state)
 
 You're already here. The motors are alive but the controller writes
 0 to every command interface. Under MuJoCo physics with gravity, the
 arms hang at their zero-pose; if you drag a joint in the viewer
 mouse interaction you can move it freely (no resistance).
 
-This is the "alive but inert" state — the operator's safe default.
+This is the "alive but inert" state — the operator's safe default, and
+what **BACK** (STOP) returns you to.
 
-## Step 3 — Transition: DAMP (any state → DAMPING)
+## Step 3 — Press X: DAMP
 
-Press **X** on the gamepad.
+Press **X** on the gamepad. `joy_teleop` activates `damping_controller`
+and deactivates whatever was running:
 
-`/control_mode` should show:
-```
-mode: 1  (DAMPING)
-controller_name: damping_controller
+```bash
+ros2 control list_controllers
+# damping_controller           active
+# zero_torque_controller       inactive
 ```
 
 Watch the MuJoCo arms: they now *resist* dragging. Stiffness is 0
@@ -101,53 +115,60 @@ so they don't actively pull back, but damping (default 1.0 N·m·s/rad)
 viscously opposes velocity. The arms sag under gravity but slowly.
 
 This is the **compliant fail-safe**. Any time you're worried, press
-X. The FSM accepts DAMP from any state — even mid-policy.
+X — it works from any state, even mid-policy, because the switch has no
+preconditions.
 
-## Step 4 — Transition: LOAD (DAMPING → STANDBY)
+:::note[Headless equivalent]
+Every button is just a `switch_controllers` call under the hood. With no
+gamepad (or `enable_joy_teleop:=false`) you fire the exact same
+transition yourself:
 
-Press **L1 + A** (hold L1, press A) — this loads **Pose A**
-(`standby_controller_a`). `L1 + B` loads a *different* pose, **Pose B**
-(`standby_controller_b`); the two poses are independent, and you can only
-switch from one to the other by going through DAMPING first (there is no
-direct A ↔ B switch).
-
-The arms now ramp through a two-segment trajectory:
-1. Segment 0 (~2 s): K_p/K_d ramp 0 → target while position
-   interpolates to zero pose. You'll see the arms gently swing to
-   "arms straight down".
-2. Segment 1 (~2 s): position interpolates to the piano-ready pose
-   (shoulders rolled out, elbows bent in). K_p/K_d stay at target.
-
-While Standby is running (watch the topic for the pose you loaded — here
-Pose A):
 ```bash
-ros2 topic echo /standby_controller_a/state
-# current_segment: 0, progress: 0.45, is_finished: false
-# ...
-# current_segment: 1, progress: 0.95, is_finished: false
-# is_finished: true   ← the gate for the next transition opens here
+ros2 control switch_controllers \
+    --activate damping_controller \
+    --deactivate zero_torque_controller
 ```
 
-The pose-ready arms should be visibly stiffer than DAMPING — try
-dragging in MuJoCo, they'll pull back to the standby pose.
+`joy_teleop` reads `joy_teleop_lite.yaml`, which maps each button to one
+of these calls.
+:::
 
-Now try pressing L1 + A again from STANDBY. The FSM rejects the
-intent and writes the reason to `/control_mode.status_message`:
+## Step 4 — Press L1 + A: STANDBY
+
+Press **L1 + A** (hold L1, press A) — this activates Pose A
+(`standby_controller_a`). `L1 + B` and `L1 + Y` activate two other
+poses (`standby_controller_b`, `standby_controller_y`). The three poses
+are independent, and because switching is flat you can hop **directly**
+between them — L1+A then L1+B swaps A → B with no DAMPING step in
+between.
+
+`StandbyController` has **no gain ramp**: it applies its constant target
+PD from the very first tick. It seeds its setpoint to the **current
+measured joint positions**, then interpolates that setpoint to the
+target pose over a couple of seconds. Because the setpoint starts at
+where the arms actually are, there is **no jump** — this makes STANDBY
+safe to enter from any state, including from a running policy.
+
+```bash
+ros2 control list_controllers
+# standby_controller_a         active
 ```
-status_message: "LOAD_A ignored; must be in DAMPING"
-```
 
-That's the gating — LOAD is only legal from DAMPING.
+Watch the MuJoCo arms glide from wherever they were into the piano-ready
+pose (shoulders rolled out, elbows bent in). They should be visibly
+stiffer than DAMPING — try dragging in MuJoCo, they'll pull back to the
+standby pose. You don't have to wait for any "finished" signal before
+the next switch: there is no gate. Press L1+A again from STANDBY and it
+just re-seeds and re-runs the interpolation.
 
-## Step 5 — Transition: START_REMOTE (STANDBY → REMOTE)
+## Step 5 — Press R1 + B: REMOTE
 
-**Wait for `is_finished:true`** in `/standby_controller_a/state` first
-(the topic for the pose you loaded). Then press **R1 + B**.
+Press **R1 + B**. `remote_policy_controller` goes active immediately —
+no need to be in STANDBY first, no `is_finished` gate:
 
-`/control_mode` shows:
-```
-mode: 4  (REMOTE)
-controller_name: remote_policy_controller
+```bash
+ros2 control list_controllers
+# remote_policy_controller     active
 ```
 
 `remote_policy_controller` is now claiming the command interfaces
@@ -190,49 +211,64 @@ they relax back into the damped hold (zero stiffness, high damping) as
 the stale-command policy kicks in. Repeat the publish to drive
 continuously, or move to the policy tutorial for the auto-publish path.
 
-## Step 6 — Transition: DAMP (out of REMOTE)
+## Step 6 — Press X: back to DAMP
 
-Press **X** again. The motors are now compliant. From DAMPING you
-can go anywhere — that's the safety guarantee.
+Press **X** again. The motors are now compliant. Because switching is
+flat, this works out of REMOTE (or any mode) with no ordering
+requirement — X always lands you in DAMPING.
 
-## Step 7 — Transition: QUIT (DAMPING → exit)
+## Step 7 — Press BACK: STOP
 
-Press **BACK**.
+Press **BACK**. `joy_teleop` activates `zero_torque_controller`:
 
-`mode_manager` shuts down (`rclcpp::shutdown()`). Watch the launch
-terminal: most of the stack tears down. The launched processes
-finish in their normal `on_deactivate` order, and the MuJoCo viewer
-window closes.
-
-**Try QUIT from STANDBY or REMOTE.** It's rejected:
-```
-status_message: "QUIT rejected; must be in ZERO_TORQUE or DAMPING"
+```bash
+ros2 control list_controllers
+# zero_torque_controller       active
 ```
 
-The FSM forces a DAMP first. This is the safety property: you can't
-exit while a policy is driving the arms.
+STOP is **not** a shutdown. `zero_torque_controller` stays enabled and
+holds zero torque on every joint — you're back at the Step 2 start
+state, and you can press any other button to leave it again. There is no
+button that tears the stack down.
 
-## Step 8 — Try the locomotion combos
+To actually exit, `Ctrl+C` the launch terminal. The hardware plugin's
+`on_deactivate` runs, sending CAN **Disable** to every joint (a no-op in
+MuJoCo but the real safety stop on silicon), and `mujoco_sim` shuts down
+cleanly.
 
-Relaunch and walk LOAD → START_LOCOMOTION (`L1+A` then `R1+A`).
-With no ONNX policy prepared (or a build without
+## Step 8 — Go straight to LOCOMOTION
+
+To prove the flat switching, don't walk up through the modes at all.
+From ZERO_TORQUE (or literally any mode), press **R1 + A**:
+
+```bash
+ros2 control list_controllers
+# rl_policy_controller         active
+```
+
+`rl_policy_controller` (LOCOMOTION) is entered **directly, at full
+authority** — no soft-start, no required STANDBY, no `is_finished`
+precondition. With no ONNX policy prepared (or a build without
 `onnxruntime`), `RLPolicyController` falls back to `PlaceholderPolicy`
-(zero actions), so this transitions to LOCOMOTION but the motors just
-stay where they are. Useful to verify the FSM gating works
-symmetrically — try START_LOCOMOTION before STANDBY has
-`is_finished:true` and it'll reject:
-```
-status_message: "START_LOCOMOTION rejected; standby not finished yet"
-```
+(zero actions), so the motors just stay where they are; the point here
+is that the switch itself is unconditional.
+
+If a mode controller ever errors (e.g. the policy emits a non-finite
+action), it doesn't need the operator or a safety topic to catch it: the
+controller_manager's native `fallback_controllers` fires automatically —
+each mode controller falls back to `damping_controller`, and
+`damping_controller` falls back to `zero_torque_controller`. The
+`/safety_status` topic is telemetry you can watch, not a trigger that
+switches modes for you.
 
 ## What you came away with
 
 | Skill | Page where it's documented in full |
 |---|---|
-| The five FSM modes and what each writes | [Concepts → Five-mode FSM](../concepts/five_mode_fsm.md) |
-| Gating logic (LOAD only from DAMPING, START_* gated on is_finished) | same |
-| The auto-DAMP safety path | [Concepts → Safety pipeline](../concepts/safety_pipeline.md) |
-| Gamepad button → intent mapping | [Quick reference](../reference/quick_reference.md) |
+| The five control modes and what each writes | [Concepts → Five control modes](../concepts/five_mode_fsm.md) |
+| Flat `joy_teleop` button → `switch_controller` mapping (no ordering) | [Quick reference](../reference/quick_reference.md) |
+| Native fault fallback (mode → damping → zero_torque) | [Concepts → Safety pipeline](../concepts/safety_pipeline.md) |
+| Gamepad button → controller mapping | [Quick reference](../reference/quick_reference.md) |
 | The MIT publish path | [`MITCommand` schema](../reference/messages.md) |
 
 ## Next
@@ -240,4 +276,4 @@ status_message: "START_LOCOMOTION rejected; standby not finished yet"
 - [Tutorials → Run a tracking policy](./tracking_policy.md) — drive
   LOCOMOTION with a real in-process ONNX policy.
 - [How-to → First real-hardware bringup](../how_to/first_real_bringup.md)
-  — same FSM, but on silicon.
+  — same modes, same buttons, but on silicon.

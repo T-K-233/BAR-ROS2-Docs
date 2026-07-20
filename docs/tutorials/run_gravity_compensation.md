@@ -7,10 +7,10 @@ sidebar_position: 4
 
 Drive the Lite arms from a **host-side Python process** — no `rclpy`, no
 colcon overlay, no `--system-site-packages`. You'll bring up the stack
-(MuJoCo or real), walk the FSM into **REMOTE**, and run an external
-gravity-compensation loop that reads joint states and publishes
+(MuJoCo or real), switch to the **REMOTE** control mode, and run an
+external gravity-compensation loop that reads joint states and publishes
 `MITCommand` back over raw DDS. By the end you'll understand the
-**Tier-3 external-client path**, the REMOTE mode of the five-mode FSM,
+**Tier-3 external-client path**, the REMOTE control mode,
 and the difference between the torque-mode and PD-mode gravity loops.
 
 This is the worked, end-to-end companion to
@@ -101,36 +101,32 @@ ros2 launch humanoid_bringup_lite mujoco.launch.py
 Wait for `zero_torque_controller` to come active. (For real hardware,
 use `real.launch.py` instead — everything downstream is identical.)
 
-## Step 3 — Walk the FSM into REMOTE
+## Step 3 — Switch to REMOTE
 
-`RemotePolicyController` only accepts commands in the **REMOTE** mode,
-and the FSM only enters REMOTE from a *finished* STANDBY. Drive the
-transitions through `mode_manager`'s trigger services (in a second
-terminal, inside `pixi shell`):
+`RemotePolicyController` accepts commands only while it is the active
+controller — i.e. in the **REMOTE** mode. Switching is flat, so you can
+enter REMOTE directly from ZERO_TORQUE (or any mode), with no DAMPING or
+STANDBY step first. Press **R1+B** on the gamepad, or, headless, make the
+same `switch_controllers` call yourself (in a second terminal, inside
+`pixi shell`):
 
 ```bash
-ros2 service call /humanoid_control/mode/damp std_srvs/srv/Trigger    # → DAMPING (gamepad: X)
-ros2 service call /humanoid_control/mode/load_a std_srvs/srv/Trigger  # → STANDBY, Pose A (gamepad: L1+A)
-
-# Wait until the standby ramp reports finished:
-ros2 topic echo /standby_controller_a/state
-# ... is_finished: true
-
-ros2 service call /humanoid_control/mode/start_remote std_srvs/srv/Trigger   # → REMOTE (gamepad: R1+B)
+ros2 control switch_controllers \
+    --activate remote_policy_controller \
+    --deactivate zero_torque_controller
 ```
 
-:::caution[`start_remote` is R1+B, not R1+A]
-**R1+A** starts LOCOMOTION (the in-process `rl_policy_controller`);
-**R1+B** starts REMOTE (`remote_policy_controller`). Use the `B`
-combo / the `start_remote` service for this demo.
+:::caution[R1+B is REMOTE, not R1+A]
+On the gamepad, **R1+A** starts LOCOMOTION (the in-process
+`rl_policy_controller`) and **R1+B** starts REMOTE
+(`remote_policy_controller`). Use the **B** combo for this demo.
 :::
 
 Confirm REMOTE is active before running the loop:
 
 ```bash
-ros2 topic echo --once /control_mode
-# mode: 4   (REMOTE)
-# controller_name: remote_policy_controller
+ros2 control list_controllers
+# remote_policy_controller  humanoid_control/RemotePolicyController   active
 ```
 
 ## Step 4 — Run the gravity-comp loop (torque mode)
@@ -178,8 +174,8 @@ rejects a joint-order mismatch.
 
 :::tip[No bringup, no robot]
 `python run_mujoco.py` opens the demo's MuJoCo model in a passive viewer
-with the same gravity compensation applied in-process — no DDS, no FSM.
-Handy for sanity-checking the model alone.
+with the same gravity compensation applied in-process — no DDS, no
+bringup. Handy for sanity-checking the model alone.
 :::
 
 ## Step 6 — Safe stop
@@ -191,10 +187,13 @@ in REMOTE, and `RemotePolicyController`'s stale-command fallback (~100 ms
 of silence) treats the now-quiet topic as a fault and falls back to
 damping.
 
-For a deliberate stop, drive the FSM back down first:
+For a deliberate stop, switch out of REMOTE first — press **X** on the
+gamepad, or headless:
 
 ```bash
-ros2 service call /humanoid_control/mode/damp std_srvs/srv/Trigger    # gamepad: X
+ros2 control switch_controllers \
+    --activate damping_controller \
+    --deactivate remote_policy_controller
 ```
 
 Then Ctrl-C the runner, then the bringup launch.
@@ -205,7 +204,7 @@ Then Ctrl-C the runner, then the bringup launch.
 |---|---|
 | The Tier-3 external-client (no-`rclpy`) DDS path | [How-to → Talk to Humanoid Control from Python](../how_to/talk_to_humanoid_control_from_python.md) |
 | `lite_sdk2` / `humanoid_control_msgs_dds` topic + QoS registry | [Reference → Packages](../reference/packages.md#humanoid_control_msgs_dds) |
-| The REMOTE mode + `start_remote` transition | [Concepts → Five-mode FSM](../concepts/five_mode_fsm.md) |
+| The REMOTE mode + the R1+B controller switch | [Concepts → Five control modes](../concepts/five_mode_fsm.md) |
 | `RemotePolicyController` and the MIT command write | [Reference → Controllers](../reference/controllers.md) |
 | The five MIT command interfaces (torque vs PD encoding) | [Concepts → MIT command surface](../concepts/mit_command_surface.md) |
 
@@ -219,4 +218,4 @@ Then Ctrl-C the runner, then the bringup launch.
   whole command surface, and how torque- and PD-mode gravity comp map
   onto it.
 - [How-to → Switch controllers manually](../how_to/switch_controllers_manually.md)
-  — the lower-level path if you'd rather bypass `mode_manager`.
+  — more on the `ros2 control switch_controllers` path used above.

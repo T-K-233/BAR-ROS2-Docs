@@ -80,33 +80,33 @@ ros2 launch humanoid_bringup_lite mujoco.launch.py
 
 Wait for `zero_torque_controller` to come active.
 
-## Step 2 — Walk to STANDBY
+## Step 2 — Switch to STANDBY
 
-`rl_policy_controller` expects the arms in a sane starting pose.
-Walk the FSM up to STANDBY. In a second terminal, drop into the env:
+`rl_policy_controller` expects the arms in a sane starting pose, so put
+them in a STANDBY pose first. This isn't strictly required — switching
+is flat and you could activate the policy directly from any mode — but
+starting from the standby pose gives the tracking policy a clean initial
+condition. In a second terminal, drop into the env:
 
 ```bash
 cd humanoid_control_ws
 pixi shell
 ```
 
-Then drive the FSM through `mode_manager`'s trigger services (the same
-transitions the gamepad would fire):
+Then switch to `standby_controller_a`. Press **L1+A** on the gamepad
+(`L1+B` / `L1+Y` load alternate poses; any of them can start either
+policy), or make the same call by hand:
 
 ```bash
-# Gamepad equivalents, if you have one:
-#   X    → DAMP
-#   L1+A → LOAD_A (STANDBY, Pose A); wait ~4 s for is_finished:true
-#   L1+B → LOAD_B (STANDBY, Pose B) — an alternate pose; either pose
-#          can start either policy
-#
-ros2 service call /humanoid_control/mode/damp std_srvs/srv/Trigger
-ros2 service call /humanoid_control/mode/load_a std_srvs/srv/Trigger
-
-# Wait for is_finished:
-ros2 topic echo /standby_controller_a/state
-# ... is_finished: true
+ros2 control switch_controllers \
+    --activate standby_controller_a \
+    --deactivate zero_torque_controller
 ```
+
+`StandbyController` seeds its setpoint to the current measured joint
+positions and interpolates to the pose over a couple of seconds — no
+jump, no gain ramp. Give it a moment to settle; there is no "finished"
+gate you have to wait for before the next switch.
 
 ## Step 3 — Prepare and load the policy
 
@@ -159,30 +159,33 @@ changes physically. The in-process `RLPolicyController` does its own
 ONNX inference and reads `/lite/joint_states` and `/imu/data` locally
 once activated — there is no command topic to publish.
 
-## Step 4 — STANDBY → START_LOCOMOTION
+## Step 4 — Activate LOCOMOTION
 
-Wait for `is_finished: true` in `/standby_controller_a/state`, then
-activate the policy through the FSM (in the FSM-walk terminal, inside
-`pixi shell`):
+Now switch to the policy. The RL policy is entered **directly, at full
+authority** — no soft-start, and no precondition on STANDBY (we used
+STANDBY only to get a clean starting pose). Press **R1 + A** on the
+gamepad, or, in the same terminal:
 
 ```bash
-ros2 service call /humanoid_control/mode/start_locomotion std_srvs/srv/Trigger
+ros2 control switch_controllers \
+    --activate rl_policy_controller \
+    --deactivate standby_controller_a
 ```
 
-(Gamepad equivalent: **R1 + A**.) `mode_manager` switches the active
-controller to `rl_policy_controller`. The motors immediately track the
-policy — in MuJoCo you'll see the arms move through the tracking dataset.
+The controller_manager makes `rl_policy_controller` active. The motors
+immediately track the policy — in MuJoCo you'll see the arms move
+through the tracking dataset.
 
 Verify the controller is active:
 
 ```bash
-ros2 topic echo --once /control_mode
-# mode: 3   (LOCOMOTION)
-# controller_name: rl_policy_controller
+ros2 control list_controllers
+# rl_policy_controller  humanoid_control/RLPolicyController   active
 ```
 
 If the ONNX returns a non-finite action, `RLPolicyController` returns
-`ERROR` and the controller_manager falls back to `damping_controller`
+`ERROR` and the controller_manager's native `fallback_controllers` drops
+to `damping_controller`
 (see [Concepts → Safety pipeline](../concepts/safety_pipeline.md)).
 
 ## Step 5 — Inspect the data flow
@@ -193,7 +196,7 @@ two always-on streams the controller reads locally:
 ```bash
 ros2 topic hz /lite/joint_states   # joint state broadcaster (RT update rate)
 ros2 topic hz /imu/data            # IMU, if the observation uses it
-ros2 topic echo --once /control_mode   # confirm LOCOMOTION / rl_policy_controller
+ros2 control list_controllers          # confirm rl_policy_controller active
 ```
 
 There is no `MITCommand` stream to inspect: inference, motion replay,
@@ -201,15 +204,18 @@ and the command write all happen inside the RT `update()`.
 
 ## Step 6 — Shut down
 
-DAMP first, then exit (still in the `pixi shell` terminal):
+Switch to DAMP first, then exit (still in the `pixi shell` terminal) —
+press **X** on the gamepad, or:
 
 ```bash
-ros2 service call /humanoid_control/mode/damp std_srvs/srv/Trigger
+ros2 control switch_controllers \
+    --activate damping_controller \
+    --deactivate rl_policy_controller
 
 # Then Ctrl+C the policy launch, then the bringup launch.
 ```
 
-DAMP switches off `rl_policy_controller` and activates
+That switches off `rl_policy_controller` and activates
 `damping_controller`; the launch's `on_deactivate` cascades through the
 controllers.
 
@@ -221,7 +227,7 @@ controllers.
 | The launch-time `prepare` step + ONNX metadata fields | same |
 | LeRobot motion → `.mcap` bag conversion | same |
 | The in-process `RLPolicyController` lifecycle | [Reference → Controllers](../reference/controllers.md) |
-| The five-mode FSM + `START_LOCOMOTION` | [Concepts → Five-mode FSM](../concepts/five_mode_fsm.md) |
+| The five control modes + the R1+A controller switch | [Concepts → Five control modes](../concepts/five_mode_fsm.md) |
 
 ## Next
 

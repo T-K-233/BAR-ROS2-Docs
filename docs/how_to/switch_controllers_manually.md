@@ -4,47 +4,55 @@ title: Switch controllers without the FSM
 
 # Switch controllers without the FSM
 
-`mode_manager` is the production path for changing controllers, but
-sometimes you want **raw control** — debugging, calibration, scripted
-tests, or just verifying the underlying controller_manager service.
-This how-to walks the mode FSM via direct `ros2 control` calls.
+There is no mode-arbitration node anymore — a control-mode change is
+just a `switch_controller` call on the `controller_manager`. The
+gamepad's `joy_teleop` node maps buttons directly to those calls; this
+how-to is the CLI equivalent, and the primary path on a dev or headless
+host without a gamepad.
 
 :::note[No gamepad? This is your mode-switch path.]
-Humanoid Control ships **no keyboard control** for the FSM — `mode_manager` reacts to a
-gamepad (`/joy`) only. On a dev or headless host without one, the
-`ros2 control` calls on this page **are** the supported way to drive modes
-by hand. (There used to be a planned `termios` keyboard reader; it was
-dropped in favour of this CLI path.)
+Humanoid Control ships **no keyboard control** — the `joy_teleop` node
+reacts to a gamepad (`/joy`) only. On a dev or headless host without one,
+the `ros2 control` calls on this page **are** the supported way to drive
+modes by hand.
 :::
 
-## Why bypass mode_manager
+## Why switch by hand
 
-| Use case | Why FSM is in the way |
+| Use case | Why the CLI |
 |---|---|
-| Calibration | The FSM auto-DAMPs on safety events; sometimes you want to manually drive state through faults. |
-| Verifying a new controller plugin | You want to load + activate it directly, not register it as an FSM mode. |
-| Recording sysid traces | The FSM transitions add unmeasurable delay; manual switches are more reproducible. |
-| Debugging a controller's `on_activate` | Direct control + log inspection without the FSM's `request_mode` retry chatter. |
+| Headless / dev host | No gamepad attached, so `/joy` never arrives — the CLI is the only mode-switch input. |
+| Verifying a new controller plugin | Load + activate it directly by name, no gamepad binding required. |
+| Recording sysid traces | Scripted switches are exactly reproducible run to run. |
+| Debugging a controller's `on_activate` | Direct control + log inspection, one switch at a time. |
 
-The FSM doesn't enforce its rules at the controller_manager layer —
-the controller_manager just sees `switch_controller` service calls.
-So you can call them directly without any FSM in the loop.
+The gamepad and the CLI hit the **same** `switch_controller` service.
+`joy_teleop` only issues a switch when a button is pressed and keeps no
+state of its own, so background CLI calls never fight it.
 
-## Disable the FSM in the launch
+## Turn off the gamepad layer (optional)
 
-Easiest: pass `enable_mode_manager:=false` so `mode_manager` isn't
-spawned at all:
+You don't need to disable anything — CLI switches work whether or not
+`joy_teleop` is running. If you'd rather drop the gamepad layer
+entirely (no button bindings on `/joy`), pass `enable_joy_teleop:=false`:
 
 ```bash
-ros2 launch humanoid_bringup_lite real.launch.py enable_mode_manager:=false
+ros2 launch humanoid_bringup_lite real.launch.py enable_joy_teleop:=false
 ```
 
-Now `zero_torque_controller` is active (the spawner set it active),
-and the four other controllers are loaded as inactive. No FSM watches
-`/safety_status`, no `/joy` is required. The operator drives every
-transition.
+Either way `zero_torque_controller` comes up active (the spawner sets it
+active) and the other controllers load inactive. Nothing watches
+`/safety_status` to switch modes for you — the operator drives every
+switch.
 
-## The four basic transitions
+## Common switches
+
+Switching is **flat**: any controller can be activated from any state,
+and each switch just deactivates the current mode and activates the new
+one (`--strict` optional; the gamepad uses best-effort). The examples
+below are ordered for a typical bring-up, but you can go directly
+between any two — e.g. `zero_torque_controller` straight to
+`rl_policy_controller`.
 
 The commands below are interactive `ros2 control` / `ros2 topic`
 calls — open a second terminal and `pixi shell` into the workspace so
@@ -69,9 +77,10 @@ oscillating.
 
 ### DAMPING → STANDBY
 
-STANDBY has two poses, each a separately spawned instance of the same
-plugin: `standby_controller_a` (Pose A) and `standby_controller_b`
-(Pose B). Activate whichever pose you want:
+STANDBY has three poses, each a separately spawned instance of the same
+plugin: `standby_controller_a` (Pose A), `standby_controller_b`
+(Pose B), and `standby_controller_y` (Pose Y) — the gamepad's `L1+A`,
+`L1+B`, and `L1+Y`. Activate whichever pose you want:
 
 ```bash
 ros2 control switch_controllers \
@@ -79,12 +88,16 @@ ros2 control switch_controllers \
     --activate   standby_controller_a
 ```
 
-Use `--activate standby_controller_b` instead for Pose B.
+Use `--activate standby_controller_b` (or `_y`) instead for the other
+poses.
 
-**The motors will move.** Standby ramps `K_p` / `K_d` from 0 to the
-target gains during segment 0, then interpolates to the piano-ready
-pose during segment 1. Total runtime ~4 seconds. Support the arms or
-have a clear workspace.
+**The motors will move.** Standby holds the target `K_p` / `K_d` from
+t=0 — there is **no gain ramp** — and seeds its setpoint to the
+**current measured** joint positions, then interpolates that setpoint to
+the pose's target. Because it starts from where the joints already are,
+it's safe to enter from any state with no jump; the arms still travel to
+the target pose over ~4 seconds, so support them or keep the workspace
+clear.
 
 Watch the state topic for the pose you activated (one per instance) for
 `is_finished: true`:
@@ -102,7 +115,8 @@ ros2 control switch_controllers \
 ```
 
 (Deactivate whichever standby instance is active —
-`standby_controller_a` or `standby_controller_b`.)
+`standby_controller_a`, `_b`, or `_y`. You can also enter REMOTE
+directly from any other mode.)
 
 `remote_policy_controller` (`humanoid_control/RemotePolicyController`) is the
 **System 1/2 external-command ingress**: it immediately starts looking
@@ -142,12 +156,13 @@ shutdown.
 ```bash
 # Which controllers are loaded, and which are active?
 ros2 control list_controllers
-# Expected after first transition:
+# Expected after the first switch:
 #   damping_controller        humanoid_control/DampingController        active
 #   zero_torque_controller    humanoid_control/ZeroTorqueController     inactive
 #   joint_state_broadcaster   joint_state_broadcaster/...  active
 #   standby_controller_a      humanoid_control/StandbyController        inactive
 #   standby_controller_b      humanoid_control/StandbyController        inactive
+#   standby_controller_y      humanoid_control/StandbyController        inactive
 #   remote_policy_controller  humanoid_control/RemotePolicyController   inactive
 
 # What hardware components are up?
@@ -176,23 +191,29 @@ ros2 control switch_controllers \
     --strict
 ```
 
-## What's the FSM doing differently?
+## Gamepad vs. CLI
 
-| Operation | FSM (`mode_manager`) | Raw `ros2 control` |
+Both paths call the same `switch_controller` service; neither gates or
+orders the switch.
+
+| | Gamepad (`joy_teleop`) | CLI (`ros2 control`) |
 |---|---|---|
-| Gate `LOAD` on current state | Yes — rejects from non-DAMPING | No — happy to go ZERO_TORQUE → STANDBY directly |
-| Gate `START_*` on `is_finished` | Yes | No |
-| Auto-DAMP on `/safety_status` | Yes | No — you have to script it |
-| Publish `/control_mode` | Yes | No — `list_controllers` is your only state view |
-| React to `/joy` | Yes | No |
+| Trigger | Button press | You type the command |
+| Backend | `switch_controller`, best-effort | `switch_controller` (add `--strict` if you want) |
+| Ordering / gating | None — any button, any state | None — any switch, any state |
+| Which mode is active | `ros2 control list_controllers` | same |
 
-When you're done debugging, **re-enable `mode_manager`** before
-operating in production. Its gates and the auto-DAMP path are real
-safety properties; the convenience of bypassing them is for the
-operator who's watching the robot, not for unattended use.
+There are **no FSM gates and no auto-DAMP** anymore. Safety comes from
+two places: the operator (switch to STOP with `BACK` / `zero_torque` or
+DAMP with `X` / `damping`, on the gamepad or the CLI), and each mode
+controller's native `fallback_controllers` — a controller whose
+`update()` errors is deactivated by the controller_manager, which then
+activates its `damping_controller` fallback automatically. See
+[Recover from a fault](./recover_from_fault.md).
 
 ## See also
 
-- [Five-mode FSM](../concepts/five_mode_fsm.md)
+- [The five control modes](../concepts/five_mode_fsm.md)
 - [First real-hardware bringup](./first_real_bringup.md)
+- [Recover from a fault](./recover_from_fault.md)
 - [Reference → Controllers](../reference/controllers.md)

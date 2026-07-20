@@ -48,7 +48,12 @@ re-creation fully reproducible.
 
 ## `humanoid_control_msgs/ControlMode`
 
-Mode-FSM telemetry, published by `mode_manager` at tick rate (50 Hz).
+Mode telemetry message. **No longer published on any topic** — the
+`mode_manager` node that published `/control_mode` at 50 Hz has been removed,
+and nothing publishes or subscribes the topic today. The message **type is
+retained** because [`humanoid_control_msgs_dds`](packages.md#humanoid_control_msgs_dds)
+generates and tests a wire-compatible mirror of it. Read the active mode from
+`/controller_manager/list_controllers` instead.
 
 ```
 std_msgs/Header header
@@ -72,7 +77,7 @@ match against the `uint8 <name> = <value>` defines, not hard-code integers.
 Published by each `StandbyController` instance on `~/state` — which resolves
 to `/standby_controller_a/state` (Pose A) or `/standby_controller_b/state`
 (Pose B), one topic per pose — with `TRANSIENT_LOCAL` (latched) QoS so a
-late-joining `mode_manager` immediately sees the most recent value.
+late-joining subscriber immediately sees the most recent value.
 
 ```
 std_msgs/Header header
@@ -82,8 +87,9 @@ float64 progress          # [0, 1] within the current segment
 bool is_finished          # true once final pose + final gains reached
 ```
 
-`mode_manager` gates the `START` intent (STANDBY → LOCOMOTION/REMOTE) on
-`is_finished == true`.
+This is **telemetry only**: `is_finished` reports when the final pose and gains
+are reached, but **nothing gates on it** anymore — any mode can be entered from
+STANDBY (or any other state) at any time.
 
 ## `humanoid_control_msgs/SafetyStatus`
 

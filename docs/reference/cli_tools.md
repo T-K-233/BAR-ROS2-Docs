@@ -56,7 +56,7 @@ These are normally driven by their launch files, but are reachable via
 | `robstride_probe` | `humanoid_devices_robstride` | Humanoid Control | Link RTT / jitter probe against one actuator. |
 | `robstride_probe_report` | `humanoid_devices_robstride` | Humanoid Control | Report companion for `robstride_probe` captures. |
 | `mit_slider_gui` | `humanoid_devices_robstride` | Humanoid Control | Qt slider window publishing Float64MultiArray to a forward_command_controller. |
-| `mode_manager` | `humanoid_controllers` | Humanoid Control | The FSM orchestrator. Normally launched by bringup; sometimes useful to start manually. |
+| `joy_teleop` | `joy_teleop` (teleop_tools) | external (built from source) | Stock gamepad node; maps buttons directly to `/controller_manager/switch_controller`. Normally launched by bringup. |
 | `calibrate_robot` | `humanoid_bringup_lite` | Humanoid Control | Sample (min, max) per joint; write `calibration.yaml` on Ctrl+C. |
 | `rerun_viz` | `humanoid_bringup_lite` | Humanoid Control | Native rerun viewer subscribed to `/robot_description` + `/lite/joint_states`. |
 | `viser_viz` | `humanoid_bringup_lite` | Humanoid Control | Browser viewer (default port 8080). Same subscriptions. |
@@ -170,29 +170,41 @@ Requires `python_qt_binding` (installed alongside `rqt_reconfigure`).
 Used in: [Tutorials → Drive one Robstride](../tutorials/drive_one_robstride.md),
 [How-to → mit_slider_gui](../how_to/mit_slider_gui.md).
 
-### `mode_manager`
+### `joy_teleop`
+
+The stock ROS `teleop_tools` gamepad node. There is **no** `mode_manager`
+executable and no FSM any more — `joy_teleop` maps gamepad buttons
+**directly** to `/controller_manager/switch_controller`, driven entirely
+by a YAML config (`joy_teleop_lite.yaml` / `joy_teleop_biped.yaml` /
+`joy_teleop_prime.yaml`). robostack-jazzy ships no `joy_teleop` binary,
+so it is built from source via `humanoid_control.repos`.
 
 ```bash
-ros2 run humanoid_controllers mode_manager
-ros2 run humanoid_controllers mode_manager --ros-args -p tick_rate_hz:=100
+ros2 run joy_teleop joy_teleop --ros-args --params-file joy_teleop_lite.yaml
 ```
 
-| Parameter | Default | Description |
-|---|---|---|
-| `tick_rate_hz` | `50.0` | Timer rate for `tick()` |
-| `controller_manager` | `/controller_manager` | CM namespace |
-| `joy.damp_button` | `2` | DAMP button index (default = X on Xbox) |
-| `joy.quit_button` | `6` | QUIT button index (default = BACK) |
-| `joy.load_combo_a` | `[4, 0]` | LOAD_A combo (default = L1+A → Pose A) |
-| `joy.load_combo_b` | `[4, 1]` | LOAD_B combo (default = L1+B → Pose B) |
-| `joy.start_combo_locomotion` | `[5, 0]` | START_LOCOMOTION (default = R1+A) |
-| `joy.start_combo_remote` | `[5, 1]` | START_REMOTE (default = R1+B) |
+Each button **activates one controller and deactivates its siblings**
+(flat, `BEST_EFFORT`) — any transition from any state, no gating, no
+ordering. Default Lite-arm button map:
 
-Normally launched by `real.launch.py` / `mujoco.launch.py`. Useful
-to run standalone when debugging the joy decoder.
+| Button(s) | Activates |
+|---|---|
+| `X` | `damping_controller` |
+| `L1 + A` | `standby_controller_a` |
+| `L1 + B` | `standby_controller_b` |
+| `L1 + Y` | `standby_controller_y` |
+| `R1 + A` | `rl_policy_controller` (locomotion) |
+| `R1 + B` | `remote_policy_controller` |
+| `BACK` | `zero_torque_controller` (STOP) |
 
-Used in: [Concepts → Five-mode FSM](../concepts/five_mode_fsm.md),
-[Reference → Controllers](./controllers.md#mode_manager-executable).
+`BACK` selects `zero_torque_controller` — it no longer shuts the process
+down; CAN Disable still happens on `Ctrl+C` via the hardware
+`on_deactivate`. Normally launched by `real.launch.py` /
+`mujoco.launch.py` (when `enable_joy_teleop:=true`, the default). Without
+a gamepad, switch controllers directly with
+`ros2 control switch_controllers --activate <name> --deactivate <name>`.
+
+Reference config pattern: `qiayuanl/unitree_bringup` `config/g1/joy.yaml`.
 
 ### `calibrate_robot`
 

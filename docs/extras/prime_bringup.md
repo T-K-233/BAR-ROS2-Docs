@@ -111,11 +111,25 @@ That defaults to `backends:=all` (both buses) and bakes in
 | Arg | Default | Purpose |
 |---|---|---|
 | `backends` | `all` | `all` (both buses) · `ec` (eRob/EtherCAT only) · `can` (Sito/CAN only). The single-bus modes spawn only `joint_state_broadcaster` — for calibration / diagnostics. |
-| `enable_mode_manager` | `true` | Launch the `mode_manager` FSM. |
-| `enable_erob_impedance` | `true` | Spawn `erob_impedance_manager` (eRob loop gains per `/control_mode`). Pass `false` to isolate startup races or fall back to factory-gain (stiff) eRob. |
+| `enable_joy_teleop` | `true` | Launch the `joy_teleop` node that maps gamepad buttons directly to `controller_manager` switches (flat, no FSM). Pass `false` for headless / CI, or when driving mode switches by hand. |
+| `enable_erob_impedance` | `true` | Spawn `erob_impedance_manager` (eRob loop gains per active mode). Pass `false` to isolate startup races or fall back to factory-gain (stiff) eRob. |
 | `enable_gamepad` | `true` | Spawn `joy_node`. Pass `enable_gamepad:=false` for headless / CI bringups. |
 | `calibration_file` | bundled `prime_calibration.yaml` | Per-joint eRob software calibration, folded at launch. |
 | `hardware_config` | bundled `prime_hardware.yaml` | `buses:` + `joints.all_joints`. |
+
+:::note[Gamepad buttons (Prime)]
+`joy_teleop` maps each button directly to a `controller_manager` switch —
+flat, with no state machine and no ordering, so any mode is reachable
+from any other in a single press: **X** activates DAMP
+(`damping_controller`); **L1+A** / **L1+B** activate STANDBY
+(`standby_controller_a` / `_b`); **R1+A** activates LOCOMOTION
+(`rl_policy_controller`); **R1+B** activates REMOTE
+(`remote_policy_controller`); **BACK** activates STOP
+(`zero_torque_controller`). Each press activates that one controller and
+deactivates its siblings. Headless, the same switches are plain
+`ros2 control switch_controllers --activate <name> --deactivate <name>`
+calls.
+:::
 
 :::note[eRob SYNC0 and `control_frequency`]
 The eRob distributed-clock SYNC0 cycle (`control_frequency`) **must** equal the
@@ -145,7 +159,8 @@ reads `update_rate` from the same controllers YAML the CM loads and passes it as
 ```bash
 ros2 topic hz /prime/joint_states     # 14 joints at ~50 Hz
 ros2 control list_controllers         # joint_state_broadcaster + zero_torque active; rest inactive
-ros2 topic echo /control_mode         # mode_manager state, once a mode is requested
+                                      # the active mode is whichever controller is `active` here
+
 ```
 
 ## Single-bus / diagnostic modes
@@ -166,8 +181,8 @@ EtherCAT activation and DC faults cannot stall the Sito command/feedback path.
 
 eRob impedance lives in the drive's internal CSP loop as CoE objects that are
 SDO-only (not PDO-mappable, so not a per-tick command interface).
-`erob_impedance_manager` watches `/control_mode` and writes each eRob's loop
-gains (`kp`/`kd` → `0x2382`/`0x2381`, gate `0x2383`) for the active mode via the
+`erob_impedance_manager` tracks which mode controller is active and writes
+each eRob's loop gains (`kp`/`kd` → `0x2382`/`0x2381`, gate `0x2383`) for the active mode via the
 EtherLab `ethercat` CLI. The mode controllers keep commanding eRob *position*
 (CSP); these gains decide whether a joint holds, damps, or goes limp. Pass
 `enable_erob_impedance:=false` to drop this path while isolating startup races.

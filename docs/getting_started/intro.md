@@ -111,7 +111,7 @@ list; the most influential are:
 
 - [Hardware specifications](../reference/hardware_specs.md) — joint counts,
   effort limits, transport details for Lite and Prime.
-- [Architecture](../concepts/architecture.md) — ros2_control flow, the 5-mode
-  FSM, and the in-process System 0 policy tier.
+- [Architecture](../concepts/architecture.md) — ros2_control flow, the five
+  control modes (flat joy_teleop switching), and the in-process System 0 policy tier.
 - [Installation](./installation.md) — install the prebuilt packages from the
   `berkeley-humanoids` channel in ~2 minutes, or build from source.

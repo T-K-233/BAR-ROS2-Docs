@@ -72,14 +72,15 @@ hard-fails when the resolved `joy_dev` path is missing.
    `/dev/input/js*` the launch could see; pass
    `joy_dev:=/dev/input/jsN` (matching one of them) on the launch
    command line.
-3. **Headless / CI bringup.** Pass `enable_gamepad:=false` and drive
-   the FSM via the `/humanoid_control/mode/*` `std_srvs/Trigger` services
+3. **Headless / CI bringup.** Pass `enable_gamepad:=false` and switch
+   controllers directly with
+   `ros2 control switch_controllers --activate <name> --deactivate <name>`
    instead.
 
 ## Gamepad is connected and `cat /dev/input/js0` shows data, but `/joy` never publishes
 
 **Diagnosis**: `joy_node` comes up and registers a `/joy` publisher but
-emits **zero messages**, so `mode_manager` never sees a button — even
+emits **zero messages**, so `joy_teleop` never sees a button — even
 though the pad is paired and `cat /dev/input/js0` streams bytes when you
 press it.
 
@@ -125,8 +126,8 @@ This is distinct from the `joy_dev` error above: there the device path
 is *missing*; here it *exists and reads fine with `cat`*, and only the
 SDL2/evdev permission is wrong.
 
-**Headless / CI**: skip the pad with `enable_gamepad:=false` and drive
-the FSM via the `/humanoid_control/mode/*` `std_srvs/Trigger` services instead.
+**Headless / CI**: skip the pad with `enable_gamepad:=false` and switch
+controllers directly with `ros2 control switch_controllers` instead.
 
 ## ENOBUFS / "Network is down" warnings during bringup
 
@@ -166,20 +167,30 @@ The bit table:
 
 **Fix**: see [Recover from a fault](../how_to/recover_from_fault.md).
 
-## `mode_manager` rejects an intent
+## A gamepad button (or a switch) doesn't change the controller
 
-**Diagnosis**: the FSM transition isn't allowed from your current
-state. `mode_manager` writes the reason into
-`/control_mode.status_message`:
+**Diagnosis**: there is no FSM and no gating any more. `joy_teleop` maps
+each button directly to `/controller_manager/switch_controller`, and every
+transition is allowed from every state, so a button that does nothing is
+almost always a config or load problem — not a rejected transition.
+
+**Why**: switching is flat and `BEST_EFFORT` — activate one controller,
+deactivate its siblings. If nothing happens, either `joy_teleop` isn't
+running / isn't receiving `/joy`, the button map in the `joy_teleop_*.yaml`
+doesn't match the pad, or the target controller was never loaded.
+
+**Fix**: read the current state and switch by hand to confirm the target
+controller exists:
 
 ```
-ros2 topic echo /control_mode
-# status_message: "LOAD_A ignored; must be in DAMPING"
+ros2 control list_controllers
+ros2 control switch_controllers --activate <name> --deactivate <name>
 ```
 
-**Fix**: walk the legal path. `LOAD` requires DAMPING; `START_*`
-requires STANDBY with `is_finished:true`; `QUIT` requires
-ZERO_TORQUE or DAMPING. See [Five-mode FSM](../concepts/five_mode_fsm.md).
+If the manual switch works but the button doesn't, the problem is in
+`joy_teleop` (`/joy` silent, or the wrong button index in the YAML). Note
+that `/control_mode` no longer exists — read the active mode from
+`ros2 control list_controllers`.
 
 ## Spawner times out waiting for `/controller_manager/list_controllers`
 
@@ -358,4 +369,4 @@ distributed clock never locks.
 - **Calibration drift**: [Calibrate the zero pose](../how_to/calibrate_zero_pose.md)
 - **Bus / qdisc nitty-gritty**: [Diagnose ENOBUFS](../how_to/diagnose_enobufs.md)
 - **Per-flag fault meaning + recovery**: [Recover from a fault](../how_to/recover_from_fault.md)
-- **FSM transition rules**: [Five-mode FSM](../concepts/five_mode_fsm.md)
+- **Controller switching (flat, via `joy_teleop` / `switch_controllers`)**: [Quick reference → Manual controller switching](./quick_reference.md#manual-controller-switching-no-fsm)

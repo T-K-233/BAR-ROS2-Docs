@@ -4,12 +4,12 @@ title: Manual / debug controllers
 
 # Manual / debug controllers
 
-A short reference of the **non-FSM** controllers — the ones the
+A short reference of the **non-mode** controllers — the ones the
 operator activates by hand for testing, tuning, or debug. These
-controllers don't appear in `mode_manager`'s transition table and
+controllers aren't in the `joy_teleop` gamepad switch set and
 aren't part of the production safety loop.
 
-For the FSM controllers (`zero_torque`, `damping`, `standby`,
+For the mode controllers (`zero_torque`, `damping`, `standby`,
 `rl_policy`, `remote_policy`) see [Controllers](./controllers.md).
 
 ## When to reach for these
@@ -21,9 +21,9 @@ For the FSM controllers (`zero_torque`, `damping`, `standby`,
 | Manually exercise one or two joints from the CLI | `forward_command_controller` claiming the target interfaces |
 | Test a new controller plugin you wrote | (your plugin) — see [Tutorials → Build your own controller](../tutorials/build_your_own_controller.md) |
 
-All of these compete with the FSM controllers for the same command
-interfaces. Activate them with `enable_mode_manager:=false` or
-explicitly deactivate the FSM controller (typically `zero_torque`)
+All of these compete with the mode controllers for the same command
+interfaces. Activate them with `enable_joy_teleop:=false` or
+explicitly deactivate the mode controller (typically `zero_torque`)
 first.
 
 ## `forward_command_controller/MultiInterfaceForwardCommandController`
@@ -70,8 +70,8 @@ the same joints and publishes them once via `ros2 topic pub
 --once`. See `mujoco_ros2_control_demos/config/cartpole_controller_position.yaml`
 for the upstream pattern.
 
-We don't bundle a YAML for this in the project — the FSM
-`StandbyController` covers the production trajectory case
+We don't bundle a YAML for this in the project — the
+`StandbyController` mode covers the production trajectory case
 end-to-end. Drop in stock JTC for one-off scripted tests.
 
 ## `humanoid_control/MITJointTrajectoryController` (project-local)
@@ -93,7 +93,7 @@ mit_joint_trajectory_controller:
 Subscribes to `~/joint_trajectory` (`trajectory_msgs/JointTrajectory`)
 and writes all 5 MIT fields every tick. Scalar `kp` / `kd` (no
 per-joint array) keeps the config simple for ad-hoc tests; for
-production use, the FSM controllers are still the right home.
+production use, the mode controllers are still the right home.
 
 Not in the default spawner batch; load it manually (inside
 `pixi shell`):
@@ -149,5 +149,5 @@ want the same interface. Active-set the deactivate list first.
 - [How-to → Drive a single joint with mit_slider_gui](../how_to/mit_slider_gui.md)
   — operator-side workflow for the slider GUI.
 - [How-to → Switch without the FSM](../how_to/switch_controllers_manually.md)
-  — when to bypass `mode_manager`.
-- [Reference → Controllers](./controllers.md) — the FSM controllers.
+  — driving controllers directly with `ros2 control switch_controllers`.
+- [Reference → Controllers](./controllers.md) — the mode controllers.

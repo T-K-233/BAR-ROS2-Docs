@@ -174,7 +174,7 @@ the Sito gains come from the active controller's `stiffness`/`damping`.
 |---|---|---|---|
 | ZERO_TORQUE | 0 | 0 | True limp on both families |
 | DAMPING | 0 | 6 | Uniform across eRob + Sito (compliant fail-safe) |
-| STANDBY | 20 | 2 | Position hold; ramps in over the entry trajectory |
+| STANDBY | 20 | 2 | Position hold; setpoint seeds to the current measured position then interpolates to the pose (constant gains, no ramp) |
 | LOCOMOTION | 20 | 2 (eRob, fixed) | Sito follow the policy's per-tick gains |
 | REMOTE | 20 | 2 (eRob, fixed) | Sito follow the per-tick remote command |
 
@@ -187,9 +187,11 @@ fixed mode impedance and track position in CSP.
 ## The eRob impedance manager
 
 `humanoid_bringup_prime/scripts/erob_impedance_manager.py` is the bridge between the
-mode FSM and the eRob loop gains. It subscribes to `/control_mode` and, on each
-transition, converts that mode's `(kp, kd)` to loop-gain registers and writes
-them over the EtherLab `ethercat download` CLI. (It uses the CLI, not the
+active control mode and the eRob loop gains. It polls
+`/controller_manager/list_controllers` to see which mode controller is active
+(the `/control_mode` topic no longer exists) and, on each change, converts that
+mode's `(kp, kd)` to loop-gain registers and writes them over the EtherLab
+`ethercat download` CLI. (It uses the CLI, not the
 in-process `ethercat_manager` SDO service, because the conda `libethercat` is
 version-mismatched against the running kernel master.)
 
@@ -268,7 +270,7 @@ history with `0x1003`. Symptom-first entries are on the
 
 ## See also
 
-- [Five-mode FSM](./five_mode_fsm.md) — the mode controllers and transition gating.
+- [Five-mode FSM](./five_mode_fsm.md) — the mode controllers and flat `joy_teleop` switching.
 - [MIT command surface](./mit_command_surface.md) — the shared 5-interface model.
 - [Calibrate the Prime arms](../how_to/calibrate_prime_erob.md) — software
   calibration (direction + homing offset), single-source in

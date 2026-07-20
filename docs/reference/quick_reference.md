@@ -48,17 +48,17 @@ ros2 launch humanoid_bringup_lite calibrate.launch.py
 ### Robot onboard computer (real bringup)
 
 ```bash
-# Real Lite — both buses, two ros2_control blocks, gamepad + mode_manager
+# Real Lite — both buses, two ros2_control blocks, gamepad + joy_teleop
 ros2 launch humanoid_bringup_lite real.launch.py
 
-# Real Lite, no gamepad attached (drive the FSM via /humanoid_control/mode/* services)
+# Real Lite, no gamepad attached (switch controllers via ros2 control switch_controllers)
 ros2 launch humanoid_bringup_lite real.launch.py enable_gamepad:=false
 
 # Gamepad enumerated as js1 (multiple controllers plugged into the Jetson)
 ros2 launch humanoid_bringup_lite real.launch.py joy_dev:=/dev/input/js1
 
-# Real Lite, no FSM (raw debug / calibration)
-ros2 launch humanoid_bringup_lite real.launch.py enable_mode_manager:=false
+# Real Lite, no joy button switching (raw debug / calibration)
+ros2 launch humanoid_bringup_lite real.launch.py enable_joy_teleop:=false
 ```
 
 `real.launch.py` boots the real-time control plane only — visualisers
@@ -70,7 +70,9 @@ loaded on the robot below.
 ```bash
 # Prepare + load the in-process tracking policy (Humanoid Control → humanoid_control_policy):
 # runs `prepare` (ONNX → .mcap + overlay), then loads rl_policy_controller
-# inactive. START_LOCOMOTION (R1+A) activates it.
+# inactive. Activate it with R1+A (joy_teleop) or:
+#   ros2 control switch_controllers --activate rl_policy_controller --deactivate <current>
+
 ros2 launch humanoid_control_policy lite_policy.launch.py \
     wandb_run_path:=… wandb_checkpoint_name:=model.onnx
 
@@ -135,20 +137,30 @@ ros2 run humanoid_bringup_lite rerun_viz
 
 ## Mode-FSM gamepad bindings (Xbox layout)
 
-| Buttons | Intent | Allowed from | Activates |
-|---|---|---|---|
-| `X` | DAMP | any state | `damping_controller` |
-| `L1 + A` | LOAD_A | DAMPING | `standby_controller_a` (Pose A) |
-| `L1 + B` | LOAD_B | DAMPING | `standby_controller_b` (Pose B) |
-| `R1 + A` | START_LOCOMOTION | STANDBY (gated on `is_finished`) | `rl_policy_controller` |
-| `R1 + B` | START_REMOTE | STANDBY (gated on `is_finished`) | `remote_policy_controller` |
-| `BACK` | QUIT | ZERO_TORQUE or DAMPING only | `rclcpp::shutdown()` |
+The stock `joy_teleop` node (from `teleop_tools`) maps each button
+**directly** to `/controller_manager/switch_controller` — there is no FSM.
+Every binding activates one controller and deactivates its siblings
+(flat, `BEST_EFFORT`); any binding works from any state, with no gating
+and no ordering.
 
-`L1+A` and `L1+B` load **different poses** (`standby_controller_a` /
-`standby_controller_b`); the START combo picks the policy. Pose and policy are
-independent — from either pose, `R1+A` → LOCOMOTION or `R1+B` → REMOTE. You
-cannot switch A↔B directly (LOAD is admissible only from DAMPING); DAMP first,
-then load the other pose. See [Concepts → Five-mode FSM](../concepts/five_mode_fsm.md).
+| Buttons | Activates |
+|---|---|
+| `X` | `damping_controller` |
+| `L1 + A` | `standby_controller_a` |
+| `L1 + B` | `standby_controller_b` |
+| `L1 + Y` | `standby_controller_y` |
+| `R1 + A` | `rl_policy_controller` (locomotion) |
+| `R1 + B` | `remote_policy_controller` |
+| `BACK` | `zero_torque_controller` (STOP) |
+
+`BACK` selects `zero_torque_controller` — it does **not** shut the process
+down; CAN Disable still happens on `Ctrl+C` via the hardware
+`on_deactivate`. Pose and policy are independent, and every transition is
+allowed from every state — from any standby pose (or any other state)
+`R1+A` → locomotion or `R1+B` → REMOTE, and you can switch directly
+between poses. See
+[Manual controller switching](#manual-controller-switching-no-fsm) for the
+equivalent `ros2 control` calls.
 
 ## Manual controller switching (no FSM)
 
@@ -160,8 +172,9 @@ ros2 control switch_controllers \
     --deactivate zero_torque_controller \
     --activate   damping_controller
 
-# DAMPING → STANDBY Pose A (motors will move to the ready pose over ~4 s;
-# use standby_controller_b for Pose B)
+# any state → STANDBY Pose A (interpolates from the measured pose toward the
+# Pose A target, constant PD from t=0, no stiffness ramp — safe from any state;
+# standby_controller_b / _y are the other poses)
 ros2 control switch_controllers \
     --deactivate damping_controller \
     --activate   standby_controller_a
@@ -181,10 +194,10 @@ Always end a session with `zero_torque_controller` active before
 |---|---|---|---|
 | `/lite/joint_states` | `sensor_msgs/JointState` | 50 Hz real / 200 Hz sim | always (`joint_state_broadcaster`, remapped at bringup) |
 | `/imu/data` | `sensor_msgs/Imu` | sensor-rate | always; RELIABLE |
-| `/control_mode` | `humanoid_control_msgs/ControlMode` | 50 Hz | always (`mode_manager`) |
 | `/safety_status` | `humanoid_control_msgs/SafetyStatus` | on-change, latched | TRANSIENT_LOCAL; `source` field per bus |
-| `/standby_controller_a/state` | `humanoid_control_msgs/StandbyState` | active-only | TRANSIENT_LOCAL; Pose A. Watch for `is_finished:true` before R1+A/R1+B |
-| `/standby_controller_b/state` | `humanoid_control_msgs/StandbyState` | active-only | TRANSIENT_LOCAL; Pose B. Watch the instance matching the loaded pose |
+| `/standby_controller_a/state` | `humanoid_control_msgs/StandbyState` | active-only | TRANSIENT_LOCAL; Pose A |
+| `/standby_controller_b/state` | `humanoid_control_msgs/StandbyState` | active-only | TRANSIENT_LOCAL; Pose B |
+| `/standby_controller_y/state` | `humanoid_control_msgs/StandbyState` | active-only | TRANSIENT_LOCAL; Pose Y |
 | `/remote_policy_controller/command` | `humanoid_control_msgs/MITCommand` | source rate | when a System 1/2 source (gravity-comp, VLA) feeds `remote_policy_controller` |
 | `/piano/key_state` | `std_msgs/Float32MultiArray` | sensor / sim rate | piano runs only (RELIABLE + KEEP_LAST(1)); live key state, in-process `key_pressed` term |
 | `/joy` | `sensor_msgs/Joy` | sensor-rate | when `enable_gamepad:=true` (default) |
@@ -204,9 +217,9 @@ ros2 topic echo --once /lite/joint_states
 # Safety status of every active bus
 ros2 topic echo --once /safety_status
 
-# Drive an FSM transition without a gamepad
-ros2 service call /humanoid_control/mode/damp std_srvs/srv/Trigger
-ros2 service call /humanoid_control/mode/load_a std_srvs/srv/Trigger   # Pose A (load_b for Pose B)
+# Switch controllers without a gamepad (any transition, from any state)
+ros2 control switch_controllers --activate damping_controller --deactivate zero_torque_controller
+ros2 control switch_controllers --activate standby_controller_a --deactivate damping_controller
 
 # Fake a System 1/2 MITCommand publish (when remote_policy_controller is active in MuJoCo)
 ros2 topic pub --once /remote_policy_controller/command \
@@ -215,17 +228,22 @@ ros2 topic pub --once /remote_policy_controller/command \
 
 ## Services for FSM transitions
 
-`std_srvs/Trigger` services on `/humanoid_control/mode/*` mirror the gamepad
-intents — useful when there's no joystick attached.
+The `/humanoid_control/mode/*` `std_srvs/Trigger` services were **removed**
+along with the FSM. Switch controllers directly instead — every transition
+is allowed from every state (activate one controller, deactivate the
+current one):
 
-| Service | Effect |
+| Former intent | Command |
 |---|---|
-| `/humanoid_control/mode/damp` | → DAMPING from any state |
-| `/humanoid_control/mode/load_a` | DAMPING → STANDBY (Pose A, `standby_controller_a`) |
-| `/humanoid_control/mode/load_b` | DAMPING → STANDBY (Pose B, `standby_controller_b`) |
-| `/humanoid_control/mode/start_remote` | STANDBY → REMOTE (gated on `is_finished`) |
-| `/humanoid_control/mode/start_locomotion` | STANDBY → LOCOMOTION (gated on `is_finished`) |
-| `/humanoid_control/mode/quit` | exit (only from ZERO_TORQUE or DAMPING) |
+| DAMP | `ros2 control switch_controllers --activate damping_controller --deactivate <current>` |
+| STANDBY A | `ros2 control switch_controllers --activate standby_controller_a --deactivate <current>` |
+| STANDBY B | `ros2 control switch_controllers --activate standby_controller_b --deactivate <current>` |
+| STANDBY Y | `ros2 control switch_controllers --activate standby_controller_y --deactivate <current>` |
+| LOCOMOTION | `ros2 control switch_controllers --activate rl_policy_controller --deactivate <current>` |
+| REMOTE | `ros2 control switch_controllers --activate remote_policy_controller --deactivate <current>` |
+| STOP | `ros2 control switch_controllers --activate zero_torque_controller --deactivate <current>` |
+
+The gamepad does exactly this via `joy_teleop`.
 
 ## The Lite joint table
 
@@ -271,7 +289,7 @@ Five command interfaces per joint: `position`, `velocity`, `effort`,
 | `ENOBUFS` / `Network is down` warnings | Motor power off → frames don't ACK → qdisc fills. Power the motors. |
 | `/lite/joint_states` shows exactly 0.0 for every joint | Motors un-Enabled (no power, or Enable frame dropped). Check `/safety_status flags`. |
 | Launch dies with "`joy_dev:=/dev/input/jsN` does not exist" | `enable_gamepad:=true` is the default and the bringup hard-fails when the resolved joystick path is missing. Plug a gamepad in, pass `joy_dev:=<actual path>` (the error message lists any other `/dev/input/js*` it found), or pass `enable_gamepad:=false`. |
-| `mode_manager` rejects `LOAD_A`/`LOAD_B` from anywhere other than DAMPING | Send DAMP (`X`) first. See FSM table above. |
+| A gamepad button doesn't switch the controller | Check `joy_teleop` is running and the target controller is loaded; read the active one with `ros2 control list_controllers`. |
 | `ros2 topic echo /safety_status` reports `flags ≠ 0` | Check [Concepts → Safety pipeline](../concepts/safety_pipeline.md) for the bit definitions. |
 
 Full guidance: [Troubleshooting](./troubleshooting.md).

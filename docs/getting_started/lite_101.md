@@ -3,7 +3,7 @@
 A 20-minute hands-on lesson. You'll go from "URDF loaded in RViz" to "the
 full controller stack running in MuJoCo, with a controller switch under
 your fingers". By the end you'll recognise the four moving pieces of the
-project — the URDF, the controller_manager, the mode-FSM controllers, and
+project — the URDF, the controller_manager, the mode controllers, and
 the simulation backend — and be ready to read the rest of the docs with
 that mental model in place.
 
@@ -59,8 +59,12 @@ Close the launch (`Ctrl+C` in the terminal) before moving on.
 ## Step 2 — Bring up MuJoCo
 
 Now the full control plane against MuJoCo physics: `controller_manager`
-hosted inside `mujoco_sim`, all five mode-FSM controllers loaded, the
-`mode_manager` orchestrator running. Nothing on the CAN bus — the
+hosted inside `mujoco_sim`, all five mode controllers loaded, with
+`zero_torque_controller` active as the safe default. Switching between
+modes is flat — the stock `joy_teleop` node maps gamepad buttons
+directly to `controller_manager` switches (there is no FSM
+orchestrator); with no gamepad here, we'll make one such switch by hand
+below. Nothing on the CAN bus — the
 `MujocoSystem` hardware plugin applies the same MIT-mode torque
 `τ = K·(q_cmd − q) + D·(q̇_cmd − q̇) + effort` to `qfrc_applied` that
 the Robstride firmware computes on silicon.
@@ -93,6 +97,7 @@ zero_torque_controller    humanoid_control/ZeroTorqueController                 
 damping_controller        humanoid_control/DampingController                           inactive
 standby_controller_a      humanoid_control/StandbyController                           inactive
 standby_controller_b      humanoid_control/StandbyController                           inactive
+standby_controller_y      humanoid_control/StandbyController                           inactive
 rl_policy_controller      humanoid_control/RLPolicyController                          inactive
 remote_policy_controller  humanoid_control/RemotePolicyController                      inactive
 ```
@@ -114,8 +119,7 @@ in a single service call.
 ### Watch the topics
 
 ```sh
-ros2 topic list | grep -E "joint_states|control_mode|standby|safety"
-# /control_mode
+ros2 topic list | grep -E "joint_states|standby|safety"
 # /lite/joint_states
 # /safety_status
 # /standby_controller_a/state
@@ -131,15 +135,11 @@ ros2 topic hz /lite/joint_states
 # average rate: 200.000
 ```
 
-`mode_manager` publishes `/control_mode` (the current FSM state) at
-50 Hz:
-
-```sh
-ros2 topic echo --once /control_mode
-# mode: 0           # ZERO_TORQUE
-# controller_name: zero_torque_controller
-# status_message: ''
-```
+There is no `/control_mode` topic — the active mode isn't published;
+it's simply whichever controller `ros2 control list_controllers` reports
+as `active` (Step 2 above). `/safety_status` is published as telemetry:
+an operator (or a monitor) watches it, but it does **not** switch modes
+for you — a fault is caught by the controllers' native fallback instead.
 
 :::tip["See it move"]
 Two interchangeable live visualizers ride on `/lite/joint_states` +
@@ -167,14 +167,13 @@ ship in the pixi env. See
 [Concepts → Architecture → Deployment topology](../concepts/architecture.md#deployment-topology).
 :::
 
-## Step 3 — Trigger a mode transition
+## Step 3 — Switch modes by hand
 
-The whole project is built around mode transitions: the operator (or a
-fault) requests an *intent*, `mode_manager` resolves it to a controller
-switch, and the controller_manager swaps the active controller. For
-this lesson we'll just call the controller_manager service directly to
-simulate what `mode_manager` would have done in response to the gamepad
-`X` (DAMP) intent.
+The whole project switches modes by switching controllers — flat and
+direct, with no ordering rules. Pressing the gamepad **X** button makes
+`joy_teleop` call the controller_manager to activate `damping_controller`
+and deactivate the rest. This lesson has no gamepad, so we make that
+same call by hand:
 
 ```sh
 ros2 control switch_controllers \
@@ -195,8 +194,8 @@ With stiffness `K = 0` there's no position-restoring force. With damping
 `D` nonzero the joint resists velocity. The result: the robot is **soft
 under gravity** (push the arm and it moves) but **damped** (it doesn't
 oscillate). This is the state you transition into before powering down,
-before swapping a tool, or after any non-OK `SafetyStatus`. See
-[Concepts → Five-mode FSM](../concepts/five_mode_fsm.md).
+before swapping a tool, or that the controllers' native fault fallback
+drops into. See [Concepts → Five control modes](../concepts/five_mode_fsm.md).
 :::
 
 If gravity is on (it is by default in our MJCF) and you switched to
@@ -228,7 +227,7 @@ Four moving pieces, all worth recognising for the rest of the docs:
 |---|---|
 | **URDF** (`lite_description`) | Kinematic + dynamic description. Same file across mock / sim / real — the `<ros2_control>` `<plugin>` is the only difference. |
 | **`controller_manager`** | Hosts the hardware plugin + every controller. The "tick loop" of the system. Update rate 50 Hz here. |
-| **Mode-FSM controllers** (`humanoid_controllers`) | Five plugins, one active at a time. `zero_torque` (safe default), `damping` (compliant fail-safe), `standby` (interpolate to a pose), `rl_policy` (in-process ONNX — the System 0 learned-policy tier), `remote_policy` (System 1/2 external-command ingress for non-real-time `MITCommand` sources). |
+| **Mode controllers** (`humanoid_controllers`) | Five plugins, one active at a time. `zero_torque` (safe default), `damping` (compliant fail-safe), `standby` (interpolate to a pose), `rl_policy` (in-process ONNX — the System 0 learned-policy tier), `remote_policy` (System 1/2 external-command ingress for non-real-time `MITCommand` sources). |
 | **MuJoCo / Robstride** (the simulation / real backend) | Where the MIT torque actually gets applied. Same five command interfaces in both. |
 
 ## Next
@@ -237,7 +236,7 @@ Where to go from here, depending on what you want:
 
 - **I want to make the arm move on real hardware.**
   → [How-to → First real-hardware bringup](../how_to/first_real_bringup.md).
-- **I want a hands-on look at the mode FSM, with the actual gamepad.**
+- **I want a hands-on look at all five modes, with the actual gamepad.**
   → [Tutorials → MuJoCo + FSM walkthrough](../tutorials/mujoco_fsm_walk.md).
 - **I want to run a trained policy.**
   → [Tutorials → Run a tracking policy](../tutorials/tracking_policy.md).

@@ -5,8 +5,8 @@ title: Run and extend an in-process policy
 # Run and extend an in-process policy
 
 Every learned policy on this stack — tracking, piano, locomotion —
-runs **in-process** in the C++ `humanoid_control::RLPolicyController` (FSM
-`LOCOMOTION` mode). This is the **System 0** real-time layer: inference
+runs **in-process** in the C++ `humanoid_control::RLPolicyController` (the
+`LOCOMOTION` control mode). This is the **System 0** real-time layer: inference
 happens inside the `ros2_control` RT `update()`, with no allocation, no
 blocking, and no separate process that could stall. Policies differ only
 by the `.onnx` checkpoint and the `.mcap` motion bag they load; the ONNX
@@ -43,8 +43,10 @@ the RT loop only ever integer-indexes preloaded data.
    scale, `observation_names`, `body_names`, `policy_dt`, `task_type`.
 2. **Inactive spawn.** The launch then spawns `rl_policy_controller`
    *inactive* into the running controller_manager with that overlay.
-3. **FSM activation.** The operator's `START_LOCOMOTION` intent
-   (`/humanoid_control/mode/start_locomotion`, R1+A on the gamepad) activates it.
+3. **Activation.** The operator activates it directly — `R1+A` on the
+   gamepad (the `joy_teleop` button mapper calls `switch_controller`), or
+   `ros2 control switch_controllers --activate rl_policy_controller` headless.
+   Any mode can switch to it directly; there is no ordering to walk.
 4. **Per-tick, in-process.** Once active, each RT tick the controller
    packs the observation (`ObservationManager`), runs ONNX inference
    (`OnnxPolicy`), reads the motion reference from the preloaded `.mcap`
@@ -97,14 +99,20 @@ For the piano task, use the equivalent
 `pianist_policy/launch/piano_policy.launch.py` from `pianist_ros2`; it
 runs the same prepare→inactive-spawn flow with the piano metadata.
 
-Finally, drive the FSM to activate (third terminal, inside `pixi shell`):
+Finally, activate the controller (third terminal, inside `pixi shell`).
+Switching is flat — you can enter `rl_policy_controller` directly from
+whatever is active, with no ordering to walk and no `is_finished` gate.
+It comes up at full authority immediately, so make sure the workspace is
+clear:
 
 ```bash
-ros2 service call /humanoid_control/mode/damp std_srvs/srv/Trigger
-ros2 service call /humanoid_control/mode/load_a std_srvs/srv/Trigger  # or load_b for Pose B
-# wait for /standby_controller_a/state.is_finished == true (per pose)
-ros2 service call /humanoid_control/mode/start_locomotion std_srvs/srv/Trigger
+ros2 control switch_controllers \
+    --activate   rl_policy_controller \
+    --deactivate zero_torque_controller
 ```
+
+(Deactivate whichever controller is currently active.) On the gamepad
+this is the single `R1+A` press.
 
 :::tip[onnxruntime is opt-in]
 `OnnxPolicy` (onnxruntime C++) is only compiled in when onnxruntime is
@@ -174,7 +182,7 @@ If you have a slow, deliberative, non-real-time source — gravity
 compensation today (`Lite-Gravity-Compensation`), VLA / manipulation
 later — that belongs in the **System 1/2 external-command ingress**, not
 here. Such a source runs out-of-process and publishes `MITCommand` over
-DDS to `humanoid_control::RemotePolicyController` (FSM `REMOTE` mode), which validates
+DDS to `humanoid_control::RemotePolicyController` (the `REMOTE` control mode), which validates
 joint order, gates on arrival-time staleness, and falls back to damping.
 That controller is *not* used by learned policies. See
 [Switch controllers without the FSM](./switch_controllers_manually.md)
