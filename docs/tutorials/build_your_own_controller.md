@@ -230,8 +230,9 @@ ros2 control list_controller_types | grep Hello
 ## Step 6 — Run it
 
 ```bash
-# Bring up Lite with the FSM disabled so we can hand-load:
-ros2 launch humanoid_bringup_lite mujoco.launch.py enable_mode_manager:=false
+# Bring up Lite with joy_teleop disabled so its button bindings don't
+# switch controllers out from under our hand-loaded one:
+ros2 launch humanoid_bringup_lite mujoco.launch.py enable_joy_teleop:=false
 ```
 
 In another terminal, load the controller via the CLI (inside
@@ -299,7 +300,7 @@ Then `Ctrl+C` the launch.
 |---|---|
 | `humanoid_control/ZeroTorqueController` | The minimal case — claims all 5 MIT interfaces, writes 0. Best baseline. |
 | `humanoid_control/DampingController` | Captures state on activate; uses a YAML per-joint or scalar fallback. |
-| `humanoid_control/StandbyController` | Multi-segment trajectory with K_p / K_d ramp; publishes its own state topic. |
+| `humanoid_control/StandbyController` | Interpolates its setpoint from the current measured joint positions to a target pose at constant PD (no gain ramp); publishes its own state topic. |
 | `humanoid_control/RLPolicyController` | The in-process System 0 policy: preloads a `.mcap` motion reference and runs ONNX inference inside `update()`; observation packing + action mapping, all RT-safe. |
 | `humanoid_control/RemotePolicyController` | The System 1/2 external-command ingress: subscribes to an `MITCommand` topic; `RealtimeBuffer` for the RT handoff; arrival-time-based stale-command policy. |
 

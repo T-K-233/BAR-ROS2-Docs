@@ -2,9 +2,10 @@
 
 This page describes **how the stack runs end-to-end**: the
 `ros2_control` cycle (50 Hz on real hardware, 200 Hz in MuJoCo), the
-five-mode finite state machine that arbitrates which controller is
-active, how policies execute (in-process and real-time — this is the
-System 0 layer), the safety / fallback model, and the two-machine
+five control modes and the flat `joy_teleop` → `switch_controller`
+arbitration that selects which controller is active, how policies execute
+(in-process and real-time — this is the System 0 layer), the safety /
+fallback model, and the two-machine
 **deployment topology** that decides which of those processes lives on
 the robot vs. on the operator workstation.
 
@@ -70,9 +71,12 @@ by Berkeley's earlier Humanoid-Control deployment.
 
 ## Five-mode finite state machine
 
-The whole control surface boils down to **one active controller at a time**,
-selected by `mode_manager`. `joint_state_broadcaster` runs alongside as the
-always-on state stream.
+The whole control surface boils down to **one active controller at a time**.
+The modes are unchanged, but the arbitration is now **flat**: the stock
+`joy_teleop` node (ROS `teleop_tools`) maps each gamepad button directly to
+a `/controller_manager/switch_controller` call, so any mode is reachable
+from any other mode with no ordering rules and no dedicated FSM node.
+`joint_state_broadcaster` runs alongside as the always-on state stream.
 
 ![Five-mode FSM](/img/diagrams/concepts__five_mode_fsm__01.svg)
 
@@ -82,32 +86,41 @@ Behavior per state:
 |---|---|---|
 | **ZERO_TORQUE** | `humanoid_control/ZeroTorqueController` | 0 to all 5 cmd interfaces. Startup default, fault fallback. |
 | **DAMPING** | `humanoid_control/DampingController` | `K=0`, `D=damping value`, `q_cmd=q_captured` — soft under gravity, resists velocity. |
-| **STANDBY** | `humanoid_control/StandbyController` | Linear pose interpolation through a YAML sequence; ramps `K_p / K_d` on first segment. Publishes `StandbyState` with `is_finished`. Two spawned instances of this plugin — `standby_controller_a` (Pose A, `L1+A`) and `standby_controller_b` (Pose B, `L1+B`) — provide two independently selectable poses; from either you can START either policy. |
+| **STANDBY** | `humanoid_control/StandbyController` | Interpolates `position` from the **current measured** joint positions toward a YAML target pose, with constant target `K_p / K_d` from t=0 (no ramp) — safe to enter from any state, including a running policy, with no jump. Still publishes `StandbyState`, but nothing gates on `is_finished`. Three spawned instances — `standby_controller_a` / `_b` / `_y` (Poses A / B / Y, `L1+A` / `L1+B` / `L1+Y`); from any of them you can start either policy. |
 | **LOCOMOTION** | `humanoid_control/RLPolicyController` | In-process ONNX inference (System 0): packs observations, replays the `.mcap` motion reference, decodes + writes commands — all in the RT `update()`. Runs every learned policy (tracking / piano / locomotion); they differ only by the loaded `.onnx` + `.mcap`. |
 | **REMOTE** | `humanoid_control/RemotePolicyController` | System 1/2 external-command ingress: subscribes `~/command` (`MITCommand` over DDS) from a *non*-real-time source (gravity-comp today, VLA / manipulation later) with arrival-time stale-command gating. |
 
-### Transition mechanics
+### Switching mechanics
 
-Every transition is **one `switch_controller` service call** to the
-controller_manager (STRICT strictness, async). The `mode_manager` node is a
-plain `rclcpp::Node` that subscribes:
+Every mode change is **one `switch_controller` service call** to the
+controller_manager that activates one controller and deactivates its
+siblings, with **BEST_EFFORT** strictness. The stock `joy_teleop` node (ROS
+`teleop_tools`, built from source via `humanoid_control.repos` since it is
+not in robostack-jazzy) reads `/joy` and issues that call, driven entirely
+by YAML (`joy_teleop_lite.yaml`, `joy_teleop_biped.yaml`,
+`joy_teleop_prime.yaml`; the mapping follows `qiayuanl/unitree_bringup`'s
+`config/g1/joy.yaml`). There is no ordering and no gating — any button
+fires from any current mode.
 
-- `/joy` (gamepad intents; on by default — bringup hard-fails if `/dev/input/js*`
-  is missing unless you opt out with `enable_gamepad:=false`)
-- `/standby_controller_a/state` and `/standby_controller_b/state` (one per standby pose; the `is_finished` gate for the two `START_*` intents)
-- `/safety_status` (the auto-DAMP trigger)
+The Lite button map:
 
-…and exposes six `std_srvs/Trigger` services so transitions can also be
-driven from the command line:
+| Button | Mode | Activates |
+|---|---|---|
+| `X` | DAMP | `damping_controller` |
+| `L1` + `A` / `B` / `Y` | STANDBY (Pose A / B / Y) | `standby_controller_a` / `_b` / `_y` |
+| `R1` + `A` | LOCOMOTION | `rl_policy_controller` |
+| `R1` + `B` | REMOTE | `remote_policy_controller` |
+| `BACK` | STOP | `zero_torque_controller` |
 
-- `/humanoid_control/mode/damp`, `/humanoid_control/mode/load_a`, `/humanoid_control/mode/load_b`,
-  `/humanoid_control/mode/start_remote`, `/humanoid_control/mode/start_locomotion`,
-  `/humanoid_control/mode/quit`
+`BACK` selects `zero_torque_controller` (motors hold zero torque but stay
+enabled); it is not a power-down — full CAN Disable happens on `Ctrl+C` via
+the hardware plugin's `on_deactivate`.
 
-`/control_mode` is published at 50 Hz. The manager polls
-`list_controllers` periodically (every 25 ticks = 500 ms) so controllers
-loaded after the first poll become visible to `dispatch_intent` without
-the operator having to re-trigger.
+There are no `/humanoid_control/mode/*` Trigger services and no
+`/control_mode` topic anymore. Programmatic clients call
+`/controller_manager/switch_controller` directly (headless operators use
+`ros2 control switch_controllers`), and anything that needs the active mode
+polls `/controller_manager/list_controllers`.
 
 ## Policy execution: System 0 (in-process, real-time)
 
@@ -231,9 +244,9 @@ system:
 Concrete examples:
 
 - A Robstride bus-off → `humanoid_devices_robstride` publishes `SafetyStatus{level=FAULT,
-  source="humanoid_devices_robstride/can0", flags=BUS_OFF}` → `mode_manager` requests a
-  STRICT switch to DAMPING. If DAMPING fails (e.g. command interfaces
-  unavailable), `mode_manager` falls back to ZERO_TORQUE.
+  source="humanoid_devices_robstride/can0", flags=BUS_OFF}` on `/safety_status` as
+  **telemetry**. Nothing auto-DAMPs on it — the operator reacts (DAMP with
+  `X`, STOP with `BACK`); there is no `mode_manager` auto-DAMP path anymore.
 - A `RemotePolicyController` whose Python publisher stalls for >100 ms
   (`stale_command_timeout_ms` default) falls into a **damped hold** by
   default (`stale_command_policy: passive` → zero stiffness, high damping
@@ -262,7 +275,7 @@ ships the piano-task-specific launches.
 
 | Side | Machine | Launch | What lives here |
 |---|---|---|---|
-| **Robot** | Onboard computer (RT kernel, wired tether) | `humanoid_bringup_lite/launch/real.launch.py` (Humanoid Control) | `ros2_control_node`, `humanoid_devices_robstride` / `humanoid_devices_sito` hardware plugins, `joint_state_broadcaster`, the six FSM controllers (`zero_torque` / `damping` / `standby_a` / `standby_b` / `rl_policy` / `remote_policy`), `mode_manager`, `joy_node`, `robot_state_publisher`, IMU driver |
+| **Robot** | Onboard computer (RT kernel, wired tether) | `humanoid_bringup_lite/launch/real.launch.py` (Humanoid Control) | `ros2_control_node`, `humanoid_devices_robstride` / `humanoid_devices_sito` hardware plugins, `joint_state_broadcaster`, the seven mode controllers (`zero_torque` / `damping` / `standby_a` / `standby_b` / `standby_y` / `rl_policy` / `remote_policy`), `joy_node` + `joy_teleop`, `robot_state_publisher`, IMU driver |
 | **Host** | Operator workstation | `humanoid_bringup_lite/launch/viz.launch.py` (Humanoid Control) | `viser_viz` *or* `rerun_viz` (selected by `viewer:=`) |
 | **Robot** | Onboard computer | `humanoid_control_policy/launch/lite_policy.launch.py` (Humanoid Control) / `pianist_policy/launch/piano_policy.launch.py` (pianist_ros2) | Runs `prepare` (resolve ONNX, convert motion → `.mcap` + overlay) then loads `rl_policy_controller` into the local CM. Inference is in-process, so the `.onnx` / `.mcap` artifacts **and** the W&B / HF Hub / `onnxruntime` *prepare-time* deps live here. The RT path itself pulls none of them. |
 | **Robot** | Onboard computer | `pianist_policy/launch/midi_keyboard_driver.launch.py` (pianist_ros2) | USB-MIDI keyboard driver → `/piano/key_state` (`std_msgs/Float32MultiArray`); feeds the on-robot controller's `key_pressed` extern term locally (loopback, does **not** cross the tether). |
@@ -287,31 +300,31 @@ Only DDS topics, never controller-manager service calls.
 | `/robot_description` | robot → host | RELIABLE + TRANSIENT_LOCAL | ~kB, latched | URDF tree (no meshes — host has its own install share). |
 | `/lite/joint_states` | robot → host | RELIABLE | 50 Hz, ~14 floats × 3 | Viewer input. The in-process policy reads it locally on the robot, so it no longer feeds a host process on the policy path. |
 | `/imu/data` | robot → host | RELIABLE | sensor-rate | Viewer / System 1/2 input. The in-process policy reads it locally on the robot. |
-| `/control_mode` | robot → host | RELIABLE | 50 Hz | FSM telemetry for operator dashboards. |
 | `/remote_policy_controller/command` | host → robot | RELIABLE depth 4 | ~280 B | *Only* present when a System 1/2 source runs off-robot (gravity-comp, future VLA). `RemotePolicyController` uses arrival-time staleness, not header.stamp. The learned policy no longer uses this path — it runs in-process. |
 | `/tf` | robot → host | RELIABLE | 50 Hz | RSP fanout — viewers consume. |
 
 `/joy` (gamepad) and `/safety_status` are intentionally onboard-only:
-both go straight into `mode_manager` (loopback) so the safety path
-never depends on the tether. `/piano/key_state` is robot-local
+`/joy` goes straight into the onboard `joy_teleop` node (loopback), and
+`/safety_status` is telemetry consumed locally (rqt / operator dashboards),
+so the operator's safety affordance never depends on the tether.
+`/piano/key_state` is robot-local
 (MIDI driver / sim bridge → the in-process controller's `key_pressed`
 term), so it does not cross the tether either.
 
 ### Why this split (the three judgment calls)
 
-- **Gamepad on the robot.** `DAMP` and `QUIT` are the operator's
+- **Gamepad on the robot.** `DAMP` and `STOP` are the operator's
   safety affordance. Routing `/joy` over DDS across the tether means
   a flaky link can suppress an e-stop. Every legged-RL deployment
   this project mirrors (`legged_control2`, `instinct_onboard`, the
   earlier Humanoid-Control stack) keeps the gamepad onboard. Use a
   USB extension or a wireless dongle plugged into the onboard
   computer, not into the host laptop.
-- **`mode_manager` on the robot.** It calls
-  `/controller_manager/switch_controller` (a service local to CM)
-  and consumes `/safety_status` from the per-bus hardware plugins.
-  Placing it onboard makes switch-controller, safety auto-DAMP, and
-  `/joy` consumption all loopback — zero cross-machine latency in
-  the safety path.
+- **`joy_teleop` on the robot.** It reads `/joy` and calls
+  `/controller_manager/switch_controller` (a service local to CM).
+  Placing it onboard makes button-to-switch-controller and `/joy`
+  consumption all loopback — zero cross-machine latency in the
+  mode-switch path.
 - **`robot_state_publisher` on the robot.** RSP is a pure transform
   fanout. Putting it onboard means `/robot_description` (latched)
   and `/tf` originate at one address; host-side viewers subscribe
@@ -335,8 +348,8 @@ deployed surface.
 
 ## Next
 
-- [`mode_manager` source](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_controllers/src/mode_manager.cpp)
-  — the FSM is ~150 lines of C++; readable in one sitting.
+- [Five-mode FSM](./five_mode_fsm.md) — the modes and the flat `joy_teleop`
+  button map that replaced the old FSM node.
 - [Lite 101](../getting_started/lite_101.md) — see all of this run end-to-end
   against mock hardware and MuJoCo.
 - [Controllers reference](../reference/controllers.md) — per-controller

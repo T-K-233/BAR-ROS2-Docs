@@ -4,8 +4,8 @@ title: Record experiments with rosbag (MCAP)
 
 # Record experiments with rosbag (MCAP)
 
-Capture a complete telemetry trace of any bringup — joints, FSM
-transitions, safety status, policy I/O — to a [MCAP](https://mcap.dev)
+Capture a complete telemetry trace of any bringup — joints, controller
+switches, safety status, policy I/O — to a [MCAP](https://mcap.dev)
 file. MCAP is the cross-language replacement for the legacy `sqlite3`
 rosbag backend; it's the default in ROS 2 Jazzy and what Foxglove
 Studio / `mcap-cli` consume directly.
@@ -37,13 +37,19 @@ explicitly:
 ```bash
 ros2 bag record -s mcap -o tuning_$(date +%Y%m%d_%H%M%S) \
     /lite/joint_states \
-    /control_mode \
     /standby_controller_a/state \
     /standby_controller_b/state \
     /safety_status \
     /joy \
     /tf /tf_static
 ```
+
+There is no `/control_mode` topic to record anymore. "Which controller
+is active" is a `/controller_manager/list_controllers` service query
+(`ros2 control list_controllers`), not a recordable topic — capture the
+per-controller state topics you care about (e.g.
+`/standby_controller_a/state`) instead. `/joy` still records the raw
+gamepad input that drove the switches.
 
 For a System 1/2 ingress session (gravity-comp, VLA), also add the
 command topic `/remote_policy_controller/command` (`humanoid_control_msgs/MITCommand`).
@@ -133,7 +139,7 @@ is the deployment-side evaluation path.
 ## See also
 
 - [Frozen schemas](../concepts/frozen_schemas.md) — why
-  `/control_mode` / `/safety_status` / etc. fields don't shift
+  `/lite/joint_states` / `/safety_status` / etc. fields don't shift
   between releases (so old bags stay readable).
 - [MCAP spec & tooling](https://mcap.dev/) — file format,
   `mcap-cli` reference, ecosystem.

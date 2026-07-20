@@ -5,10 +5,12 @@ title: Safety pipeline
 # Safety pipeline
 
 `Humanoid Control`'s safety layer is **layered** rather than concentrated.
-Three subsystems each enforce one piece of the contract; together
-they make sure that "the robot is in DAMPING within a tick of a
-fault" is the worst case, never "the robot is doing something
-unexpected and we didn't notice".
+Several mechanisms each enforce one piece of the contract: a controller
+that produces a bad command is automatically swapped to a compliant
+fallback by `ros2_control` itself, and transport-level faults are surfaced
+as telemetry so the operator (or a supervising client) can react. There is
+deliberately **no** single node that watches everything and forces a mode —
+the model mirrors the minimal `ros2_control` reference.
 
 ![Safety pipeline: fault to DAMPING in ≤1 tick](/img/diagrams/concepts__safety_pipeline__01.svg)
 
@@ -27,9 +29,9 @@ unexpected and we didn't notice".
 | `INVALID_FRAME` | A frame on the bus had the wrong comm-type code or DLC for the protocol. |
 
 The plugin publishes `humanoid_control_msgs/SafetyStatus` on `/safety_status` —
-TRANSIENT_LOCAL durability so late-joining subscribers (like rqt or a
-freshly-started `mode_manager`) immediately see the most recent
-value. The `source` field carries the bus interface name
+TRANSIENT_LOCAL durability so late-joining subscribers (rqt, an operator
+dashboard) immediately see the most recent value. The `source` field
+carries the bus interface name
 (`humanoid_devices_robstride/can0`, etc.), so an operator can tell which bus
 flagged.
 
@@ -106,23 +108,27 @@ reserved for cases where DAMPING itself can't be applied (state
 interface unavailable, hardware plugin dead). It writes 0 to every
 interface — no risk of unintended motion regardless of state.
 
-## Layer 4 — `mode_manager` reacts to `/safety_status`
+## Layer 4 — `/safety_status` is operator telemetry
 
-`mode_manager` subscribes to `/safety_status`. On any non-OK level:
+There is deliberately **no** automatic `/safety_status` → DAMP path. The
+old `mode_manager` node subscribed to `/safety_status` and forced a STRICT
+switch to DAMPING on any non-OK level; that node is deleted, and nothing
+replaced its auto-DAMP behavior.
 
-```
-SafetyStatus.level != OK  →  request_mode(DAMPING)
-```
+Instead, `/safety_status` is **telemetry**. Bus and motor faults
+(`RX_TIMEOUT`, `MOTOR_FAULT`, `TEMPERATURE_LIMIT`, `BUS_OFF`, and the rest)
+are published for a human operator — or a supervising client — to see and
+react to: press `X` to DAMP or `BACK` to STOP. What *is* automatic is
+Layer 3: a controller that turns a fault into a bad command (a non-finite
+observation, say) returns `ERROR`, and the controller_manager activates its
+`fallback_controllers` with no operator in the loop.
 
-The transition is `STRICT` — if it fails because the command
-interfaces are unavailable, `mode_manager` requests ZERO_TORQUE
-instead and writes the failure reason into `/control_mode.status_message`.
-
-This is **belt-and-suspenders** on top of Layer 3: even if a
-controller failed to detect its own bad command, the plugin's safety
-publish path triggers the FSM-level fallback. And even if the plugin
-missed an issue, the controller's own validation triggers the
-controller-manager-level fallback.
+This is a deliberate reduction to the reference's minimal model. The two
+automatic guarantees that remain — a controller catching its own bad
+command (Layer 2) and the controller_manager swapping in the fallback
+(Layer 3) — cover the case that actually needs sub-tick reaction. Reacting
+to a *reported* bus fault is left to the operator, who can always DAMP or
+STOP from the gamepad.
 
 ## Layer 5 — RT update() discipline
 
@@ -154,11 +160,11 @@ its slot, etc.
 | 1. Transport-level | hardware plugin | Bus / motor faults → `SafetyStatus.flags` |
 | 2. Command-validity | controller | NaN / size mismatch / stale → `return_type::ERROR` |
 | 3. Controller-manager fallback | controller_manager | `ERROR` → activate the controller's `fallback_controllers` |
-| 4. FSM auto-DAMP | `mode_manager` | `SafetyStatus.level != OK` → `request_mode(DAMPING)` |
+| 4. Fault telemetry | `/safety_status` subscribers | Bus / motor faults reported for the operator (or a client) to react — no automatic DAMP |
 | 5. RT discipline | every controller / plugin | (preventative — keeps the other layers responsive) |
 
 ## See also
 
 - [How-to → Recover from a fault](../how_to/recover_from_fault.md) — operator-side runbook.
 - [Reference → Messages → SafetyStatus](../reference/messages.md) — full bit table.
-- [Five-mode FSM](./five_mode_fsm.md) — the FSM side of Layer 4.
+- [Five-mode FSM](./five_mode_fsm.md) — the modes and flat `joy_teleop` switching.

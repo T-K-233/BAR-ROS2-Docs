@@ -57,9 +57,10 @@ if state is not None:
 
 ## 3. Publish a command
 
-`RemotePolicyController` consumes `MITCommand` (in the **REMOTE** mode of the
-[five-mode FSM](../concepts/five_mode_fsm.md)). Drive the FSM into REMOTE first
-(gamepad, or [switch controllers manually](./switch_controllers_manually.md)).
+`RemotePolicyController` consumes `MITCommand` (the **REMOTE** control mode; see
+[the five control modes](../concepts/five_mode_fsm.md)). Activate
+`remote_policy_controller` first — `R1+B` on the gamepad, or
+[switch controllers manually](./switch_controllers_manually.md).
 
 ```python
 from lite_sdk2 import MITCommand, zero_mit_command
@@ -84,9 +85,13 @@ pub.write(zero_mit_command(state.name, damping=2.0))
 |---|---|---|
 | `MITCommand` | `/remote_policy_controller/command` | reliable, depth 4 |
 | `JointState` | `/lite/joint_states` | reliable, depth 10 |
-| `ControlMode` | `/control_mode` | reliable |
 | `SafetyStatus` | `/safety_status` | reliable |
 | `StandbyState` | `/standby_controller_a/state` (one per pose; `_b` for Pose B) | transient-local (latched) |
+
+The `ControlMode` message type still ships in `humanoid_control_msgs_dds`, but
+nothing publishes `/control_mode` anymore. Read the active controller from
+the `/controller_manager/list_controllers` service (`ros2 control
+list_controllers`) instead.
 
 QoS reliability and durability **must** match the bringup for DDS to pair a
 writer with a reader — the registry already encodes the matching values.

@@ -49,8 +49,8 @@ Custom ROS 2 interfaces. Once a trained policy depends on one, it is **frozen**.
 | Message | Used by |
 |---|---|
 | `MITCommand` | System 1/2 source → `RemotePolicyController`. The on-wire command format (also written internally by `RLPolicyController`). |
-| `ControlMode` | `mode_manager` → `/control_mode` telemetry. |
-| `StandbyState` | `StandbyController` → `/standby_controller_a/state` / `/standby_controller_b/state` (one topic per pose; `is_finished` gate for the `START_LOCOMOTION` / `START_REMOTE` intents). |
+| `ControlMode` | Type retained for the off-ROS DDS bridge only. The `/control_mode` topic and the `mode_manager` that published it are removed; read the active mode via `ros2 control list_controllers`. |
+| `StandbyState` | `StandbyController` → `/standby_controller_a/state` / `/standby_controller_b/state` / `/standby_controller_y/state` (one topic per pose). |
 | `SafetyStatus` | every hardware plugin / controller → `/safety_status`. Per-bus `source` field; bitmask in `flags`. |
 
 See [Messages reference](messages.md) for full schemas.
@@ -157,7 +157,11 @@ Both:
 - Publishes a `humanoid_control_msgs/SafetyStatus` on `/safety_status` (TRANSIENT_LOCAL,
   per-bus source field) with bit-flags for `BUS_OFF` / `RX_TIMEOUT` /
   `TX_QUEUE_OVERRUN` / `MOTOR_FAULT` / `TEMPERATURE_LIMIT` / `INVALID_FRAME`.
-  `mode_manager` subscribes and auto-falls to DAMPING on any non-OK level.
+  `/safety_status` is **telemetry only** — nothing subscribes to auto-fall
+  to DAMPING. Controller-side faults are handled by the controller_manager's
+  native `fallback_controllers` (each mode controller → `damping_controller`,
+  `damping_controller` → `zero_torque_controller`); bus-level faults are
+  cleared by the operator STOP (`BACK` → `zero_torque_controller`).
 
 Ships three CLI executables alongside the plugin:
 
@@ -169,16 +173,20 @@ Ships three CLI executables alongside the plugin:
 
 ### `humanoid_controllers`
 
-Five mode-FSM controllers + the standalone `mode_manager` executable.
+The five control-mode controller plugins, plus a manual
+`MITJointTrajectoryController`. There is **no** `mode_manager` executable
+and no FSM: mode switching is the stock `joy_teleop` node (from
+`teleop_tools`, built from source via `humanoid_control.repos`), which maps
+gamepad buttons directly to `/controller_manager/switch_controller`.
 
 | Plugin | State | Source |
 |---|---|---|
-| `humanoid_control/ZeroTorqueController` | startup, safer fault fallback | `zero_torque_controller.cpp` |
+| `humanoid_control/ZeroTorqueController` | startup, STOP, safer fault fallback | `zero_torque_controller.cpp` |
 | `humanoid_control/DampingController` | compliant fail-safe | `damping_controller.cpp` |
-| `humanoid_control/StandbyController` | pose interpolation + gain ramp | `standby_controller.cpp` |
+| `humanoid_control/StandbyController` | interpolates `position` from the measured pose toward a YAML target pose (A/B/Y), constant `K_p`/`K_d` from t=0 (no stiffness ramp) — safe from any state | `standby_controller.cpp` |
 | `humanoid_control/RLPolicyController` | in-process ONNX inference (System 0) — every learned policy | `rl_policy_controller.cpp` |
 | `humanoid_control/RemotePolicyController` | System 1/2 external-command ingress | `remote_policy_controller.cpp` |
-| `mode_manager` exe | FSM orchestrator | `mode_manager.cpp` |
+| `humanoid_control/MITJointTrajectoryController` | manual joint-trajectory command | `mit_joint_trajectory_controller.cpp` |
 
 `RLPolicyController` now runs full in-process inference. Its runtime
 modules live alongside the controllers in this package:
@@ -267,10 +275,11 @@ The first two launches:
    `MujocoRos2ControlPlugin` loaded as a pluginlib physics plugin).
 3. Start `robot_state_publisher`.
 4. Spawn `joint_state_broadcaster` (active) + `zero_torque_controller`
-   (active) + the five remaining mode controllers (inactive) — `damping`,
-   the two standby poses (`standby_controller_a` / `standby_controller_b`),
-   `rl_policy`, and `remote_policy`.
-5. Start `mode_manager` (when `enable_mode_manager:=true`).
+   (active) + the remaining mode controllers (inactive) — `damping`,
+   the standby poses (`standby_controller_a` / `standby_controller_b` /
+   `standby_controller_y`), `rl_policy`, and `remote_policy`.
+5. Start `joy_teleop` (gamepad buttons → `/controller_manager/switch_controller`)
+   when `enable_joy_teleop:=true` (the default).
 6. Start `joy_node` (when `enable_gamepad:=true`, which is the default).
 
 `humanoid_bringup_lite/config/sim_overrides.yaml` adds `use_sim_time:=true`

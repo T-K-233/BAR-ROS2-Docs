@@ -229,9 +229,27 @@ def group_box(x: int, y: int, w: int, h: int, title_: str, *,
     return f"{body}\n{label}"
 
 
+def _recolor(svg: str) -> str:
+    """Map the legacy Berkeley blue/gold palette to the site's orange theme.
+
+    The plain-orange redesign recolored the SVGs by editing them directly and
+    never updated this generator, so a naive re-run would revert the theme.
+    This bakes the exact same attribute-aware substitution back in (verified to
+    reproduce every committed diagram byte-for-byte), so the script self-produces
+    the orange theme. To retheme, change only these five rules — the diagram
+    functions keep using the semantic BLUE/GOLD/... constants.
+    """
+    return (svg
+            .replace('stroke="#003262"', 'stroke="#ff6633"')   # BLUE stroke -> orange
+            .replace('fill="#003262"', 'fill="#cc4a1f"')       # BLUE text  -> dark orange
+            .replace('#FDB515', '#5f6671')                     # GOLD -> slate
+            .replace('#E7F0FF', '#ffece2')                     # BLUE_FILL -> light orange
+            .replace('#FFF6DF', '#eef0f2'))                    # GOLD_FILL -> light slate
+
+
 def write_svg(name: str, content: str) -> None:
     path = OUT / name
-    path.write_text(content, encoding="utf-8")
+    path.write_text(_recolor(content), encoding="utf-8")
     print(f"  wrote {path.relative_to(ROOT)}")
 
 
@@ -262,7 +280,7 @@ def d_intro_01_system() -> None:
                  fill=BLUE_FILL, stroke=BLUE).render())
     s.append(Box(340, 170, 220, 60, "controller_manager (50 Hz)",
                  fill=BLUE_FILL, stroke=BLUE).render())
-    s.append(Box(340, 250, 100, 50, "mode_manager",
+    s.append(Box(340, 250, 100, 50, "joy_teleop",
                  fill=BLUE_FILL, stroke=BLUE).render())
     s.append(Box(460, 250, 100, 50, "humanoid_control_policy",
                  fill=GOLD_FILL, stroke=GOLD).render())
@@ -291,11 +309,10 @@ def d_intro_01_system() -> None:
                    label_offset=-12, color=GREY))
     # Onboard internal
     s.append(arrow(450, 150, 450, 170))  # bringup -> CM
-    s.append(arrow(390, 230, 390, 250))  # CM -> mode_manager
+    s.append(arrow(390, 230, 390, 250))  # CM -> joy_teleop
     s.append(arrow(510, 230, 510, 250))  # CM -> policy
-    s.append(arrow(390, 300, 390, 320))  # mode_manager -> hw plugin (vertically aligned)
     s.append(arrow(510, 300, 510, 320))  # policy -> hw plugin
-    # mode_manager -> CM (loop back)
+    # joy_teleop -> CM (switch_controller loop back)
     s.append(polyline([(345, 275), (320, 275), (320, 200), (340, 200)]))
     # Onboard -> robot (CAN)
     s.append(arrow(560, 350, 690, 350, label="MIT-mode CAN",
@@ -329,7 +346,7 @@ def d_intro_02_packages() -> None:
     # Shared column
     pkg(40, 90, "humanoid_control_common", "RT helpers, MITState POD")
     pkg(40, 144, "humanoid_control_msgs", "MITCommand, ControlMode, ...")
-    pkg(40, 198, "humanoid_controllers", "5 mode-FSM + mode_manager")
+    pkg(40, 198, "humanoid_controllers", "5 mode controllers + MIT traj")
     pkg(40, 252, "humanoid_control_policy", "ONNX runner + LeRobot ref")
     pkg(40, 306, "humanoid_drivers_socketcan", "SocketCAN bus library")
 
@@ -604,70 +621,57 @@ def d_sf_rt_cycle() -> None:
 
 
 def d_sf_fsm() -> None:
-    """5-mode FSM."""
-    W, H = 940, 460
+    """Five control modes + flat joy_teleop switching."""
+    W, H = 940, 480
     s = [header(W, H)]
-    s.append(title(20, 30, "Five-mode FSM",
-                   sub="Only one controller is active at a time; joint_state_broadcaster always runs"))
+    s.append(title(20, 28, "Five control modes",
+                   sub="Each button → switch_controller directly; any "
+                       "transition from any state (BEST_EFFORT)."))
 
-    # Nodes
-    def state(x, y, label, color=BLUE):
-        fill = BLUE_FILL if color == BLUE else (
-            GREEN_FILL if color == GREEN else
-            GOLD_FILL if color == GOLD else
-            RED_FILL if color == RED else LIGHT)
-        s.append(Box(x, y, 200, 56, label, fill=fill, stroke=color).render())
+    # joy_teleop hub (left).
+    s.append(Box(45, 210, 185, 66,
+                 ["joy_teleop", "/joy → switch_controller"],
+                 fill=BLUE_FILL, stroke=BLUE).render())
 
-    state(60, 100, "ZERO_TORQUE", GREEN)
-    state(60, 250, "DAMPING", GREEN)
-    state(360, 250, "STANDBY", BLUE)
-    state(660, 150, "LOCOMOTION", GOLD)
-    state(660, 320, "REMOTE", GOLD)
+    # Controller boxes (right), one per mode.
+    def state(y, label, color, sub=None):
+        fill = (GREEN_FILL if color == GREEN else
+                GOLD_FILL if color == GOLD else
+                BLUE_FILL if color == BLUE else LIGHT)
+        s.append(Box(560, y, 250, 52, label, sub=sub, fill=fill,
+                     stroke=color).render())
+        return (560, y + 26)  # left-edge anchor
 
-    # Edges
-    def edge(p1, p2, label, color=TEXT):
-        x1, y1 = p1
-        x2, y2 = p2
-        s.append(arrow(x1, y1, x2, y2, color=color))
-        mx = (x1 + x2) // 2
-        my = (y1 + y2) // 2 - 8
-        s.append(label_pill(mx, my, label))
+    zt = state(64, "zero_torque_controller", GREEN, sub="BACK = STOP")
+    dp = state(142, "damping_controller", GREEN)
+    sb = state(220, "standby_controller_a / b / y", BLUE)
+    lo = state(298, "rl_policy_controller", GOLD, sub="LOCOMOTION")
+    rm = state(376, "remote_policy_controller", GOLD, sub="REMOTE")
 
-    # ZERO_TORQUE <-> DAMPING
-    edge((130, 156), (130, 250), "DAMP (X / Ctrl+C)")
-    edge((180, 250), (180, 156), "manual")
+    # Fan-out edges from joy_teleop to each controller, labelled by button.
+    hub = (230, 243)
+    for (tx, ty), lbl in [(zt, "BACK"), (dp, "X"), (sb, "L1 + A / B / Y"),
+                          (lo, "R1 + A"), (rm, "R1 + B")]:
+        s.append(arrow(hub[0], hub[1], tx - 4, ty))
+        s.append(label_pill((hub[0] + tx) // 2 + 20,
+                            (hub[1] + ty) // 2 - 8, lbl))
 
-    # DAMPING -> STANDBY
-    edge((260, 278), (360, 278), "LOAD (L1+A|B)")
-    # STANDBY -> DAMPING
-    edge((360, 290), (260, 290), "DAMP", color=GREY)
-    # STANDBY -> LOCOMOTION (gated on is_finished)
-    edge((560, 260), (660, 178), "START_LOCOMOTION (R1+A)")
-    s.append(text(610, 220, "+is_finished", size=10, fill=GREY,
-                  anchor="middle"))
-    # STANDBY -> REMOTE (gated on is_finished)
-    edge((560, 290), (660, 348), "START_REMOTE (R1+B)")
-    # LOCOMOTION / REMOTE -> DAMPING
-    s.append(polyline([(660, 178), (550, 178), (550, 230), (450, 230),
-                       (260, 230)], color=GREY))
-    s.append(label_pill(450, 215, "DAMP / fault"))
-    s.append(polyline([(660, 348), (550, 348), (550, 320), (450, 320),
-                       (260, 320)], color=GREY))
-    s.append(label_pill(440, 305, "DAMP / fault"))
+    # Fault path note (native fallback, not a joy button). Short lines kept
+    # left of the button pills (~x380).
+    for i, line in enumerate([
+            "Fault path (native, not a joy button):",
+            "a controller update() → ERROR is dropped",
+            "to damping via fallback_controllers.",
+            "/safety_status is telemetry (no auto-DAMP)."]):
+        s.append(text(46, 372 + i * 15, line, size=11, fill=GREY,
+                      anchor="start"))
 
-    # Quit edges
-    s.append(arrow(60, 130, 30, 130, color=GREY))
-    s.append(text(30, 118, "QUIT", size=10, fill=GREY, anchor="end"))
-    s.append(arrow(60, 280, 30, 280, color=GREY))
-    s.append(text(30, 268, "QUIT", size=10, fill=GREY, anchor="end"))
-
-    # Legend
-    s.append(text(820, 410, "Green = safe / fail-safe", size=11,
-                  anchor="end", fill=GREEN))
-    s.append(text(820, 425, "Blue = transitional", size=11, anchor="end",
-                  fill=BLUE))
-    s.append(text(820, 440, "Gold = active policy", size=11, anchor="end",
-                  fill=GOLD))
+    # Legend (by role, not colour name), bottom-right, clear of the boxes.
+    s.append(text(810, 444, "safe / fail-safe", size=11, anchor="end",
+                  fill=GREEN))
+    s.append(text(810, 459, "standby (interpolate to pose)", size=11,
+                  anchor="end", fill=BLUE))
+    s.append(text(810, 474, "active policy", size=11, anchor="end", fill=GOLD))
 
     s.append(footer())
     write_svg("concepts__five_mode_fsm__01.svg", "".join(s))
@@ -756,7 +760,7 @@ def d_lite_mock_launch() -> None:
         ("xacro", 280, GREY),
         ("mujoco_sim", 460, BLUE),
         ("controller_manager", 640, BLUE),
-        ("mode_manager", 820, GOLD),
+        ("joy_teleop", 820, GOLD),
     ]
     lt, lb = 80, 510
     for name, x, color in lanes:
@@ -779,11 +783,11 @@ def d_lite_mock_launch() -> None:
     step(280, 100, 640, "spawn jsb (active)")
     step(310, 100, 640, "spawn zero_torque (active)")
     step(340, 100, 640, "spawn 4 others (inactive)")
-    step(380, 100, 820, "start mode_manager")
-    step(410, 820, 640, "switch_controller(zero_torque)")
+    step(380, 100, 820, "start joy_teleop (waits for /joy)")
 
     s.append(text(W // 2, 460,
-                  "System is now at ZERO_TORQUE, publishing /joint_states at 50 Hz",
+                  "System is now at ZERO_TORQUE (from the spawner), publishing "
+                  "/joint_states at 50 Hz",
                   size=12, weight=600, fill=BLUE, anchor="middle"))
 
     s.append(footer())
@@ -832,7 +836,7 @@ def d_lite_mujoco_internals() -> None:
                  fill=LIGHT, stroke=GREY).render())
     s.append(Box(310, 380, 220, 40, "controller spawners",
                  fill=LIGHT, stroke=GREY).render())
-    s.append(Box(560, 380, 180, 40, "mode_manager",
+    s.append(Box(560, 380, 180, 40, "joy_teleop",
                  fill=LIGHT, stroke=GREY).render())
     s.append(arrow(180, 380, 180, 290, color=GREY, dashed=True))
     s.append(label_pill(180, 340, "/robot_description"))
@@ -894,7 +898,7 @@ def d_msgs_pubsub() -> None:
     W, H = 920, 480
     s = [header(W, H)]
     s.append(title(20, 30, "humanoid_control_msgs pub/sub topology",
-                   sub="Who publishes / who subscribes for each of the 4 active topics"))
+                   sub="Who publishes / who subscribes for each active topic"))
 
     # 3 columns: publishers / topics / subscribers
     s.append(group_box(20, 70, 230, 380, "Publishers"))
@@ -908,44 +912,30 @@ def d_msgs_pubsub() -> None:
             RED_FILL if color == RED else LIGHT)
         s.append(Box(x, y, 200, 40, label, fill=fill, stroke=color).render())
 
-    pub(35, 100, "StandbyController", BLUE)
-    pub(35, 160, "mode_manager", GOLD)
-    pub(35, 220, "Hardware plugins", RED)
-    pub(35, 280, "Active policy ctrls", BLUE)
-    pub(35, 340, "humanoid_control_policy (Python)", GOLD)
+    pub(35, 110, "StandbyController", BLUE)
+    pub(35, 200, "Hardware plugins", RED)
+    pub(35, 290, "policy source (ctrl / VLA)", BLUE)
 
-    pub(350, 100, "/standby_controller/state", GREEN)
-    pub(350, 160, "/control_mode", GREEN)
-    pub(350, 220, "/safety_status", GREEN)
-    pub(350, 280, "~/command (MITCommand)", GREEN)
+    pub(350, 110, "/standby_controller/state", GREEN)
+    pub(350, 200, "/safety_status", GREEN)
+    pub(350, 290, "~/command (MITCommand)", GREEN)
 
-    pub(680, 100, "mode_manager", GOLD)
-    pub(680, 160, "diagnostics / log", GREY)
-    pub(680, 220, "mode_manager", GOLD)
-    pub(680, 280, "RemotePolicyController", BLUE)
+    pub(680, 110, "(none - telemetry)", GREY)
+    pub(680, 200, "(none - telemetry)", GREY)
+    pub(680, 290, "RemotePolicyController", BLUE)
 
-    # Arrows
-    pairs = [
-        (130, 130, 350, 130),    # StandbyCtrl -> /standby_controller/state
-        (130, 200, 350, 190),    # mode_manager -> /control_mode
-        (130, 270, 350, 250),    # HW plugins -> /safety_status
-        (130, 270, 350, 250),
-        (130, 380, 350, 310),    # humanoid_control_policy -> ~/command
-        # topics -> subs
-        (560, 130, 680, 130),    # standby/state -> mode_manager
-        (560, 190, 680, 190),    # control_mode -> log
-        (560, 250, 680, 250),    # safety_status -> mode_manager
-        (560, 310, 680, 310),    # ~/command -> RemotePolicy
-    ]
-    seen = set()
-    for x1, y1, x2, y2 in pairs:
-        k = (x1, y1, x2, y2)
-        if k in seen: continue
-        seen.add(k)
-        s.append(arrow(x1, y1, x2, y2, color=GREY))
+    # Arrows: publisher -> topic -> subscriber, one row each.
+    for y in (130, 220, 310):
+        s.append(arrow(235, y, 350, y, color=GREY))
+        s.append(arrow(550, y, 680, y, color=GREY))
 
-    s.append(text(W // 2, 460,
-                  "/standby_controller/state uses TRANSIENT_LOCAL QoS so a late mode_manager sees the last is_finished",
+    s.append(text(W // 2, 462,
+                  "ControlMode still ships in humanoid_control_msgs (DDS wire "
+                  "bridge); /control_mode is no longer published.",
+                  size=11, fill=GREY, anchor="middle"))
+    s.append(text(W // 2, 476,
+                  "Read the active mode from list_controllers. "
+                  "/standby_controller/state and /safety_status are telemetry.",
                   size=11, fill=GREY, anchor="middle"))
 
     s.append(footer())
@@ -983,7 +973,7 @@ def d_arch_module_deps() -> None:
 
     # Controllers + policies
     s.append(Box(70, 195, 200, 50, "humanoid_controllers",
-                 sub="5 modes + mode_manager",
+                 sub="5 mode controllers + MIT traj",
                  fill=BLUE_FILL, stroke=BLUE).render())
     s.append(Box(310, 195, 200, 50, "humanoid_control_policy",
                  sub="ONNX runner (Python)",
@@ -1244,13 +1234,13 @@ def d_safety_pipeline() -> None:
     """Safety pipeline — fault to DAMPING in one tick."""
     W, H = 1000, 500
     s = [header(W, H)]
-    s.append(title(20, 30, "Safety pipeline — fault to DAMPING in ≤1 tick",
-                   sub="Detection (plugin) → telemetry (latched topic) → response (mode_manager)"))
+    s.append(title(20, 30, "Safety pipeline — detection, telemetry, native fallback",
+                   sub="Detection (plugin) → telemetry (latched topic) → operator + fallback_controllers"))
 
     # Three layers, left to right
     s.append(group_box(40, 70, 280, 380, "Layer 1: detection (plugin)"))
     s.append(group_box(360, 70, 240, 380, "Layer 2: telemetry"))
-    s.append(group_box(640, 70, 320, 380, "Layer 3: response"))
+    s.append(group_box(640, 70, 320, 380, "Layer 3: native fallback + operator"))
 
     # Fault sources (left column)
     def fault(y, name, src):
@@ -1281,32 +1271,40 @@ def d_safety_pipeline() -> None:
     s.append(arrow(480, 270, 480, 290, color=GREY))
     s.append(arrow(480, 330, 480, 360, color=GREY))
 
-    # Response (right column)
-    s.append(Box(660, 100, 280, 40, "mode_manager.on_safety()",
+    # Response (right column): /safety_status is telemetry (no auto-DAMP);
+    # the automatic path is native fallback_controllers on a controller error.
+    s.append(Box(660, 100, 280, 44,
+                 ["/safety_status = telemetry", "rqt / logs / operator"],
+                 fill=GREY_FILL, stroke=GREY).render())
+    s.append(text(800, 168, "No auto-DAMP node — the operator reacts",
+                  size=11, anchor="middle", fill=GREY))
+    s.append(text(800, 183, "(BACK = STOP / X = DAMP).",
+                  size=11, anchor="middle", fill=GREY))
+
+    s.append(Box(660, 210, 280, 44,
+                 ["controller update() → ERROR", "(e.g. non-finite obs)"],
+                 fill=RED_FILL, stroke=RED).render())
+    s.append(Box(660, 282, 280, 38, "controller_manager: fallback_controllers",
                  fill=BLUE_FILL, stroke=BLUE).render())
-    s.append(Box(660, 160, 280, 40, "level == OK?",
-                 fill=LIGHT, stroke=GREY).render())
-    s.append(Box(660, 220, 280, 40, "request_mode(Mode::Damping)",
+    s.append(Box(660, 340, 280, 34, "damping_controller",
                  fill=GOLD_FILL, stroke=GOLD).render())
-    s.append(Box(660, 280, 280, 40, "if STRICT switch fails:",
-                 fill=LIGHT, stroke=GREY).render())
-    s.append(Box(660, 330, 280, 40, "request_mode(Mode::ZeroTorque)",
+    s.append(Box(660, 392, 280, 34, "zero_torque_controller",
                  fill=GREEN_FILL, stroke=GREEN).render())
-    s.append(Box(660, 390, 280, 36, "controller_manager: switch_controller",
-                 fill=BLUE_FILL, stroke=BLUE).render())
-    s.append(arrow(800, 140, 800, 160))
-    s.append(arrow(800, 200, 800, 220, label="non-OK", label_offset=8))
-    s.append(arrow(800, 260, 800, 280, label="fallback", label_offset=8))
-    s.append(arrow(800, 320, 800, 330))
-    s.append(arrow(800, 370, 800, 390))
+    s.append(arrow(800, 254, 800, 282))
+    s.append(arrow(800, 320, 800, 340, label="activate", label_offset=8))
+    s.append(arrow(800, 374, 800, 392, label="its fallback", label_offset=8))
 
     # Cross-column arrows
     s.append(arrow(300, 250, 380, 200, label="aggregate", label_offset=-12))
-    s.append(arrow(580, 385, 660, 120, label="subscribe", label_offset=-12))
+    s.append(arrow(580, 385, 660, 122, label="publish", label_offset=-12))
 
     # Note
-    s.append(text(W // 2, 470,
-                  "BUS_OFF is the one sticky flag — clears only on the next on_activate(), because EMI bursts shouldn't auto-recover.",
+    s.append(text(W // 2, 466,
+                  "The automatic path is native fallback_controllers (controller "
+                  "ERROR → damping → zero_torque), independent of /safety_status.",
+                  size=11, anchor="middle", fill=GREY))
+    s.append(text(W // 2, 482,
+                  "BUS_OFF is a sticky flag cleared only on the next on_activate().",
                   size=11, anchor="middle", fill=GREY))
 
     s.append(footer())
@@ -1449,7 +1447,7 @@ def d_real_bringup_spawn() -> None:
         ("launch", 240, GREY),
         ("ros2_control_node", 420, BLUE),
         ("RobstrideSystem", 600, GREEN),
-        ("mode_manager", 780, GOLD),
+        ("joy_teleop", 780, GOLD),
     ]
     lt, lb = 70, 550
     for name, x, color in lanes:
@@ -1474,12 +1472,11 @@ def d_real_bringup_spawn() -> None:
     step(360, 240, 420, "spawn joint_state_broadcaster (active)")
     step(390, 240, 420, "spawn zero_torque (active)")
     step(420, 240, 420, "spawn damping/standby/rl/remote (inactive)")
-    step(460, 240, 780, "start mode_manager")
-    step(490, 780, 420, "switch_controller(zero_torque, asap)")
-    step(520, 780, 420, "subscribe /safety_status, /joy")
+    step(460, 240, 780, "start joy_teleop (reads /joy)")
+    step(490, 780, 420, "switch_controller on button press", color=GREY)
 
     s.append(text(W // 2, 565,
-                  "After this sequence: motors compliant, /joint_states @ 50 Hz, /control_mode publishes ZERO_TORQUE.",
+                  "After this sequence: motors compliant, /joint_states @ 50 Hz, at ZERO_TORQUE (from the spawner).",
                   size=12, weight=600, fill=BLUE, anchor="middle"))
 
     s.append(footer())

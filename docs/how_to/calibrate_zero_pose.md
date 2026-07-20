@@ -43,7 +43,7 @@ ros2 launch humanoid_bringup_lite calibrate.launch.py
 ```
 
 `calibrate.launch.py` includes `real.launch.py` with three overrides:
-`calibration_file:='' enable_mode_manager:='false' enable_gamepad:='false'`.
+`calibration_file:='' enable_joy_teleop:='false' enable_gamepad:='false'`.
 The empty calibration means `/lite/joint_states` carries the
 `direction × raw_motor_pos` frame — exactly what the homing-offset
 formula needs. `zero_torque_controller` stays active, keeping every

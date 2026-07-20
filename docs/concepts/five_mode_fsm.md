@@ -1,143 +1,175 @@
 # Five-mode FSM
 
-The operator-facing control surface is a **finite state machine over
-controllers**. Each "mode" is exactly one `controller_interface::ControllerInterface`
-plugin, and **only one mode controller is active at any time** — the
-controller_manager's interface-claiming machinery enforces that
-mutual exclusion mechanically. `joint_state_broadcaster` is the
-always-on telemetry stream alongside whichever mode is active.
+The operator-facing control surface is **five control modes, each one a
+`controller_interface::ControllerInterface` plugin**, with **only one mode
+controller active at any time** — the controller_manager's
+interface-claiming machinery enforces that mutual exclusion mechanically.
+`joint_state_broadcaster` is the always-on telemetry stream alongside
+whichever mode is active.
+
+The modes have not changed. What changed is the **arbitration**. There is
+no longer a finite state machine with ordering rules, and no dedicated
+`mode_manager` node. Switching is now **flat**: the stock `joy_teleop`
+node (from ROS `teleop_tools`) maps each gamepad button **directly** to a
+`/controller_manager/switch_controller` call, and **any mode is reachable
+from any other mode** with no gating. (This page keeps its historical
+"FSM" name because the sidebar and several other pages link to it.)
 
 ![Five-mode FSM with joy bindings](/img/diagrams/concepts__five_mode_fsm__01.svg)
 
-## Why a state machine
+## Why flat switching
 
-Three reasons, all from operator UX:
+The previous design routed the gamepad through a hand-written FSM
+(`mode_manager`) that enforced ordering rules — DAMP from anywhere, LOAD
+only from DAMPING, START only from a finished STANDBY, QUIT only from a
+resting state. That ceremony has been removed in favour of the
+ros2-control-idiomatic pattern (reference: `qiayuanl/unitree_bringup`,
+`config/g1/joy.yaml`): the gamepad drives `switch_controller` directly, and
+every mode is designed to be **safe to enter from any state**, so no
+gating is needed.
 
-1. **Single-axis safety.** "Send DAMP" should land you somewhere safe
-   regardless of where you are now. A flat set of controllers with
-   ad-hoc transitions would have to enumerate `N²` "from X to DAMP"
-   paths; an FSM with one universal DAMP edge has one rule.
-2. **Gated transitions.** STANDBY → REMOTE shouldn't fire while
-   STANDBY is still mid-trajectory. The state machine gives us a
-   natural place to express "only allowed when `is_finished:true`".
-3. **Single source of truth for `/control_mode`.** Observers (rqt
-   dashboards, loggers, the cheat-sheet you print) read one topic to
-   know what the robot is doing.
+Two properties make the flat model safe without an FSM:
 
-The cost is a little extra ceremony for the operator (you can't go
-ZERO_TORQUE → REMOTE directly), but that ceremony is the safety
-property.
+1. **Every button is absolute, not relative.** Each button activates
+   exactly one controller and deactivates its siblings, so "press DAMP"
+   lands you in DAMPING regardless of where you were — the same
+   single-axis safety the FSM's universal DAMP edge used to give, now a
+   property of the button map itself.
+2. **Every mode is jump-free on entry.** STANDBY seeds its position
+   setpoint to the **current measured** joint positions and interpolates
+   from there to the target pose, so it can be entered from a running
+   policy with no discontinuity; DAMPING captures the live position;
+   ZERO_TORQUE writes zero. Because no entry is unsafe, the old "only
+   allowed when `is_finished`" gates are unnecessary. You can go
+   ZERO_TORQUE → LOCOMOTION or LOCOMOTION → STANDBY directly.
+
+The trade is deliberate: less mechanism (no FSM node, no ordering rules,
+no `/control_mode` telemetry topic, no per-mode Trigger services), closer
+to stock ros2-control, at the cost of the operator being able to command
+any transition — including ones the FSM used to reject.
 
 ## The five modes
 
 | Mode | Plugin | What it writes per tick | Use it for |
 |---|---|---|---|
-| **ZERO_TORQUE** | `humanoid_control::ZeroTorqueController` | `0` to all 5 MIT interfaces on every joint | Startup default. Fault fallback when DAMPING can't be applied (e.g. state not yet valid). Robot is alive but inert. |
-| **DAMPING** | `humanoid_control::DampingController` | `stiffness=0`, `damping=damping_value`, `position=captured`, `velocity=0`, `effort=0` | Compliant fail-safe. Robot stays soft under gravity but resists velocity. The state you pass through between operator-driven transitions. |
-| **STANDBY** | `humanoid_control::StandbyController` | Interpolated `position` along a YAML pose sequence; `K_p`/`K_d` ramped 0→target during segment 0 | Animate the arms to a ready pose with gain ramp-in. Spawned as **two instances** — `standby_controller_a` (Pose A) and `standby_controller_b` (Pose B) — the same plugin with different YAML poses. Each publishes `~/state.is_finished` so transitions out are gated correctly. |
-| **LOCOMOTION** | `humanoid_control::RLPolicyController` | In-process ONNX inference (low-latency, C++): packs obs, replays the `.mcap` motion reference, writes commands | **Every learned policy** — tracking, piano, locomotion. They differ only by the loaded `.onnx` + `.mcap`; the ONNX `task_type` selects the term set. This is the System 0 real-time path. |
+| **ZERO_TORQUE** | `humanoid_control::ZeroTorqueController` | `0` to all 5 MIT interfaces on every joint | Startup default and the STOP target (`BACK`). Also the final fault fallback (DAMPING falls back here). Robot is alive but inert — motors enabled, zero torque. |
+| **DAMPING** | `humanoid_control::DampingController` | `stiffness=0`, `damping=damping_value`, `position=captured`, `velocity=0`, `effort=0` | Compliant fail-safe. Robot stays soft under gravity but resists velocity. The native fallback target for any mode controller that errors. |
+| **STANDBY** | `humanoid_control::StandbyController` | Interpolated `position` from the **current measured** joint positions toward a YAML target pose; constant target `K_p`/`K_d` from t=0 (**no ramp**) | Animate the arms to a ready pose. Because the setpoint starts at the measured position, it is safe to enter from any state — including a running policy — with no jump. Spawned as **three instances** — `standby_controller_a` / `_b` / `_y` (Poses A / B / Y) — the same plugin with different YAML poses. Still publishes `~/state` (`StandbyState`), but nothing gates on `is_finished` anymore. |
+| **LOCOMOTION** | `humanoid_control::RLPolicyController` | In-process ONNX inference (low-latency, C++): packs obs, replays the `.mcap` motion reference, writes commands | **Every learned policy** — tracking, piano, locomotion. They differ only by the loaded `.onnx` + `.mcap`; the ONNX `task_type` selects the term set. This is the System 0 real-time path. Entered directly at full authority (no soft-start). |
 | **REMOTE** | `humanoid_control::RemotePolicyController` | `MITCommand` consumed from `~/command` over DDS | System 1/2 external-command ingress: a *non*-real-time source publishes commands (gravity-comp today via `Lite-Gravity-Compensation`; VLA / manipulation later). Not used by the learned policies. |
 
 Full per-controller parameter tables live in
 [Reference → Controllers](../reference/controllers.md).
 
-## Transition rules
+## Button map
 
-Encoded in `humanoid_controllers/src/mode_manager.cpp`. The operator's
-gamepad intent goes through `dispatch_intent`, which gates based on the
-current mode:
+The mapping lives in `joy_teleop_lite.yaml` (with siblings
+`joy_teleop_biped.yaml` and `joy_teleop_prime.yaml`) and is read by the
+stock `joy_teleop` node. Each entry maps a button — or an `L1`/`R1` chord —
+to **one** `switch_controller` call that **activates one controller and
+deactivates its siblings**, with **BEST_EFFORT** strictness. There is no
+ordering: any row fires from any current mode.
 
-```
-DAMP             (X)        : any state            → DAMPING
-LOAD_A           (L1+A)     : DAMPING              → STANDBY (standby_controller_a, Pose A)
-LOAD_B           (L1+B)     : DAMPING              → STANDBY (standby_controller_b, Pose B)
-START_LOCOMOTION (R1+A)     : STANDBY ∧ is_finished → LOCOMOTION
-START_REMOTE     (R1+B)     : STANDBY ∧ is_finished → REMOTE
-QUIT             (BACK)     : ZERO_TORQUE or DAMPING → rclcpp::shutdown()
-                              (rejected from active-policy states —
-                               operator must DAMP first)
-```
+| Button | Mode | Activates |
+|---|---|---|
+| `X` | DAMP | `damping_controller` |
+| `L1` + `A` | STANDBY (Pose A) | `standby_controller_a` |
+| `L1` + `B` | STANDBY (Pose B) | `standby_controller_b` |
+| `L1` + `Y` | STANDBY (Pose Y) | `standby_controller_y` |
+| `R1` + `A` | LOCOMOTION | `rl_policy_controller` |
+| `R1` + `B` | REMOTE | `remote_policy_controller` |
+| `BACK` | STOP | `zero_torque_controller` |
 
-The same transitions are also exposed as `std_srvs/Trigger` services
-under `/humanoid_control/mode/{damp,load_a,load_b,start_remote,start_locomotion,quit}`, so a
-keyboardless lab box can drive the FSM with `ros2 service call …`.
+`teleop_tools` is not in robostack-jazzy, so it is built from source via
+`humanoid_control.repos`.
 
-`mode_manager` publishes `/control_mode` (`humanoid_control_msgs/ControlMode`) at
-50 Hz. When an intent is rejected, the rejection reason goes into
-`status_message` so operators see *why* a button didn't take effect.
+`BACK` selects `zero_torque_controller`: the motors hold zero torque but
+stay **enabled** — the robot is still on the bus. It is **not** a
+power-down. Full CAN Disable happens only on `Ctrl+C`, when the hardware
+plugin's `on_deactivate` runs. There is no button-driven shutdown and no
+sequenced QUIT anymore.
 
-To avoid a startup race where the operator's first DAMP press lands
-before all controllers have finished loading, `mode_manager` polls
-`list_controllers` every 25 ticks (500 ms at 50 Hz) so newly loaded
-controllers become visible to `dispatch_intent` immediately.
+### Driving it without a gamepad
 
-## The auto-DAMP path (safety)
-
-Every hardware plugin publishes `/safety_status` (`humanoid_control_msgs/SafetyStatus`)
-on a TRANSIENT_LOCAL QoS, with a bitmask of `BUS_OFF`, `RX_TIMEOUT`,
-`TX_QUEUE_OVERRUN`, `MOTOR_FAULT`, `TEMPERATURE_LIMIT`, `INVALID_FRAME`.
-`mode_manager` subscribes. On any non-`OK` level it requests DAMPING
-with a STRICT switch:
+There are no `/humanoid_control/mode/*` Trigger services anymore.
+Programmatic clients call `/controller_manager/switch_controller`
+directly; a headless operator uses the stock CLI:
 
 ```
-SafetyStatus.level != OK   →   request_mode(DAMPING)
+ros2 control switch_controllers --activate standby_controller_a --deactivate damping_controller
 ```
 
-If DAMPING itself fails to activate (e.g. the bus is gone and the
-command interfaces are unavailable), `mode_manager` falls further
-back to ZERO_TORQUE and writes the failure reason into
-`/control_mode.status_message`. The chain is intentionally
-**conservative-to-most-conservative**: REMOTE → DAMPING → ZERO_TORQUE.
+### Which mode is active?
 
-See [Concepts → Safety pipeline](./safety_pipeline.md) for what each
-flag means and which plugin sets it.
+The `/control_mode` topic is **gone** — nothing publishes it. (The
+`humanoid_control_msgs/ControlMode` message type still exists, because the
+`humanoid_control_msgs_dds` wire bridge generates and tests it, but no node
+publishes or subscribes the topic.) Anything that needs to know which mode
+is active now polls `/controller_manager/list_controllers` and looks for
+the active mode controller — the MuJoCo `HomePosePlugin` support band and
+the Prime `erob_impedance_manager` both do this.
+
+## Fault handling is native fallback
+
+Fault response is now **purely** ros2-control's own `fallback_controllers`
+mechanism. Each mode controller declares
+`fallback_controllers: [damping_controller]` (and `damping_controller`
+itself falls back to `zero_torque_controller`); if a controller's
+`update()` returns `ERROR` — e.g. a non-finite observation — the
+controller_manager deactivates it and activates its fallback.
+
+There is **no** automatic `/safety_status` → DAMP path anymore. Bus faults
+(RX timeout, motor fault, overtemp) are still published on `/safety_status`
+as **telemetry**, but nothing auto-DAMPs on them — the operator reacts
+(`X` to DAMP, `BACK` to STOP) or a controller error trips the native
+fallback. See [Concepts → Safety pipeline](./safety_pipeline.md) for the
+full picture.
 
 ## Pose and policy are independent
 
-The two LOAD combos select **which standby pose** to animate to; the two
-START combos select **which policy** to run. The two axes are orthogonal:
+The three `L1` combos select **which standby pose** to animate to; the two
+`R1` combos select **which policy** to run. The two axes are orthogonal,
+and nothing is gated:
 
-- `L1+A` → LOAD_A loads `standby_controller_a` (Pose A); `L1+B` → LOAD_B
-  loads `standby_controller_b` (Pose B). The two instances are the same
-  `StandbyController` plugin (source `standby_controller.cpp`, unchanged)
-  configured with **different YAML poses**.
-- From **either** standby pose you can start **either** policy: `R1+A` →
-  LOCOMOTION (`rl_policy_controller`), `R1+B` → REMOTE
-  (`remote_policy_controller`). There is no pairing — `L1+A` then `R1+B`
-  is exactly as valid as `L1+A` then `R1+A`.
+- `L1+A` / `L1+B` / `L1+Y` load `standby_controller_a` / `_b` / `_y`
+  (Poses A / B / Y). All three are the same `StandbyController` plugin
+  (source `standby_controller.cpp`, unchanged) configured with **different
+  YAML poses**.
+- From any standby pose — or from any other mode — you can start **either**
+  policy: `R1+A` → LOCOMOTION (`rl_policy_controller`), `R1+B` → REMOTE
+  (`remote_policy_controller`). There is no pairing and no gate — `L1+A`
+  then `R1+B` is exactly as valid as `L1+A` then `R1+A`.
 
-The one thing you **cannot** do is switch directly from Pose A to Pose B
-(or back): LOAD is admissible only from DAMPING (unchanged), so to change
-pose you DAMP first, then LOAD the other pose. On `/control_mode` both
-poses report `mode = STANDBY`; the `controller_name` field tells you which
-one is active (`standby_controller_a` vs `standby_controller_b`).
+Because switching is flat, you can now go **directly** from one standby
+pose to another: `L1+B` from Pose A activates `standby_controller_b` and
+deactivates `standby_controller_a` in one call, and because STANDBY seeds
+to the current measured position the arms move smoothly to the new pose
+with no DAMP in between. (Under the old FSM, LOAD was admissible only from
+DAMPING, so a pose change required a DAMP first; that gate is gone.)
 
-The **policy target is still chosen at runtime**, not by a launch arg.
-There's no `policy_mode` parameter on `mode_manager` — the choice between
-`RemotePolicyController` and `RLPolicyController` is the button that ends
-the START combo.
+The **policy target is still chosen at runtime**, not by a launch arg — it
+is simply which `R1` button you press.
 
-## What mode_manager is *not*
+## What joy_teleop is *not*
 
-- **Not a safety system on its own.** Hardware plugins still have to
-  detect transport failures and publish them; `mode_manager` only
-  reacts to what plugins report. The plugin enforces "cannot apply
-  command" (returns the right `return_type`), the FSM enforces "this
-  transition is not allowed", and the controller_manager enforces "no
-  two controllers claim the same command interface".
-- **Not the controller_manager.** `mode_manager` is a regular
-  `rclcpp::Node` executable that calls `switch_controller` as a
-  client. The actual interface-claiming and `update()` orchestration
-  is done by `controller_manager` running inside `ros2_control_node`.
+- **Not a safety system on its own.** It only translates buttons into
+  `switch_controller` calls. Detecting transport failures is the hardware
+  plugins' job (they publish `/safety_status`); catching a bad command is
+  the controller's job (it returns `ERROR` and the controller_manager
+  activates its fallback); enforcing "no two controllers claim the same
+  command interface" is the controller_manager's job.
+- **Not a custom node.** `joy_teleop` is the stock `teleop_tools` node
+  driven entirely by YAML — there is no bespoke FSM executable to maintain.
+  The old `mode_manager` node is deleted.
 - **Not running during calibration.** `calibrate.launch.py` passes
-  `enable_mode_manager:=false` so the FSM doesn't interfere with the
-  raw `/lite/joint_states` sampling. The operator drives controllers
-  directly via `switch_controllers` if they want a mode change during
+  `enable_joy_teleop:=false` (the launch arg was renamed from
+  `enable_mode_manager`) so button presses don't interfere with the raw
+  `/lite/joint_states` sampling. Drive controllers by hand with
+  `ros2 control switch_controllers` if you need a mode change during
   calibration.
 
 ## See also
 
 - [Reference → Controllers](../reference/controllers.md) — per-plugin parameter tables.
-- [Concepts → Safety pipeline](./safety_pipeline.md) — what triggers auto-DAMP.
-- [How-to → Switch controllers without the FSM](../how_to/switch_controllers_manually.md).
-- [`mode_manager` source](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_controllers/src/mode_manager.cpp).
+- [Concepts → Safety pipeline](./safety_pipeline.md) — the native fallback model and `/safety_status` as telemetry.
+- [How-to → Switch controllers by hand](../how_to/switch_controllers_manually.md).

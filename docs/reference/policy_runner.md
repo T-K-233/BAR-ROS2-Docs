@@ -130,8 +130,12 @@ things, in order:
    `rl_policy_params.yaml` overlay. This is the dependency-heavy,
    non-real-time work; it must finish before the controller configures.
 2. **Spawns `rl_policy_controller` *inactive*** with the overlay as a
-   `--param-file`. The operator's FSM `START_LOCOMOTION`
-   (`/humanoid_control/mode/start_locomotion`, R1+A) is what activates it.
+   `--param-file`. The operator activates it **directly** — there is no
+   FSM and no soft-start gating, so the transition is allowed from any
+   state: `ros2 control switch_controllers --activate rl_policy_controller
+   --deactivate standby_controller_a` (or whichever controller is active).
+   On the gamepad that is R1+A, which `joy_teleop` maps straight to
+   `/controller_manager/switch_controller`.
 
 The launch args are pass-throughs to the `prepare` CLI below (plus
 `out_dir`, defaulting to `~/.cache/humanoid_control_policy/launch/`, which fixes the

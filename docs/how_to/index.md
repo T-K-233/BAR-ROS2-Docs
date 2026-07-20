@@ -26,14 +26,14 @@ and now have a concrete task in mind. How-tos skip the pedagogy that
 |---|---|
 | [Drive a single joint with mit_slider_gui](./mit_slider_gui.md) | You want to inject a position/velocity/effort/K/D combination by hand and see the actuator follow. Good for sanity-checking a freshly calibrated joint. |
 | [Live-visualize the robot (rerun / viser)](./live_viz.md) | You want the live kinematic chain on screen while the robot runs — for tuning, demos, or watching a policy from another machine. |
-| [Record experiments with rosbag (MCAP)](./record_experiments.md) | You want a replayable trace — joints, FSM transitions, safety status, policy I/O — for offline analysis, regression baselines, or Foxglove Studio. |
+| [Record experiments with rosbag (MCAP)](./record_experiments.md) | You want a replayable trace — joints, controller switches, safety status, policy I/O — for offline analysis, regression baselines, or Foxglove Studio. |
 
 ## Diagnosis & recovery
 
 | Guide | Use it when |
 |---|---|
 | [Diagnose ENOBUFS / TX drops](./diagnose_enobufs.md) | The plugin spams `Network is down` or you see `tx_failed` counters climb. Usually motor power is off or `txqueuelen` is too small. |
-| [Recover from a fault](./recover_from_fault.md) | `/safety_status` reported `BUS_OFF`, `RX_TIMEOUT`, or `TEMPERATURE_LIMIT` and `mode_manager` auto-dropped to DAMPING. |
+| [Recover from a fault](./recover_from_fault.md) | `/safety_status` reported `BUS_OFF`, `RX_TIMEOUT`, or `TEMPERATURE_LIMIT`, or a control-mode controller errored into its `damping` fallback. |
 
 ## Extension
 

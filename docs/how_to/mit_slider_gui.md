@@ -116,7 +116,8 @@ to the motor.
 The default config tests one joint. To drive a single arm joint of
 the full Lite without disturbing the others, the cleanest path is:
 
-1. Launch the normal Lite bringup with `enable_mode_manager:=false`.
+1. Launch the normal Lite bringup with `enable_joy_teleop:=false` so
+   the gamepad layer can't switch controllers out from under you.
 2. Load a forward command controller separately (inside `pixi shell`):
 
 ```bash
@@ -127,7 +128,7 @@ ros2 control load_controller \
 ```
 
 3. Switch the target joint's command claim from `zero_torque_controller`
-   to `forward_one_joint` — but the FSM controllers claim *all* the
+   to `forward_one_joint` — but each mode controller claims *all* the
    joints, so this requires deactivating `zero_torque_controller`
    on the full robot. In practice it's easier to load a
    `forward_command_controller` that claims the target joint AND
