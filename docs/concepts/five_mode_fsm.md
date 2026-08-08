@@ -55,11 +55,33 @@ any transition — including ones the FSM used to reject.
 | **ZERO_TORQUE** | `humanoid_control::ZeroTorqueController` | `0` to all 5 MIT interfaces on every joint | Startup default and the STOP target (`BACK`). Also the final fault fallback (DAMPING falls back here). Robot is alive but inert — motors enabled, zero torque. |
 | **DAMPING** | `humanoid_control::DampingController` | `stiffness=0`, `damping=damping_value`, `position=captured`, `velocity=0`, `effort=0` | Compliant fail-safe. Robot stays soft under gravity but resists velocity. The native fallback target for any mode controller that errors. |
 | **STANDBY** | `humanoid_control::StandbyController` | Interpolated `position` from the **current measured** joint positions toward a YAML target pose; constant target `K_p`/`K_d` from t=0 (**no ramp**) | Animate the arms to a ready pose. Because the setpoint starts at the measured position, it is safe to enter from any state — including a running policy — with no jump. Spawned as **three instances** — `standby_controller_a` / `_b` / `_y` (Poses A / B / Y) — the same plugin with different YAML poses. Still publishes `~/state` (`StandbyState`), but nothing gates on `is_finished` anymore. |
-| **LOCOMOTION** | `humanoid_control::RLPolicyController` | In-process ONNX inference (low-latency, C++): packs obs, replays the `.mcap` motion reference, writes commands | **Every learned policy** — tracking, piano, locomotion. They differ only by the loaded `.onnx` + `.mcap`; the ONNX `task_type` selects the term set. This is the System 0 real-time path. Entered directly at full authority (no soft-start). |
+| **LOCOMOTION** | `humanoid_control::RLPolicyController` | In-process ONNX inference (low-latency, C++): packs obs, advances the motion reference if the task has one, writes commands | **Every learned policy** — tracking, piano, locomotion. They differ by the loaded `.onnx` and its motion source (see below); the ONNX `task_type` selects the term set. This is the System 0 real-time path. Entered directly at full authority (no soft-start). |
 | **REMOTE** | `humanoid_control::RemotePolicyController` | `MITCommand` consumed from `~/command` over DDS | System 1/2 external-command ingress: a *non*-real-time source publishes commands (gravity-comp today via `Lite-Gravity-Compensation`; VLA / manipulation later). Not used by the learned policies. |
 
 Full per-controller parameter tables live in
 [Reference → Controllers](../reference/controllers.md).
+
+### Where a policy's motion reference comes from
+
+A locomotion policy has no motion reference at all — it is driven live by the
+`/cmd_vel` twist. Tasks that *do* follow a reference get it from one of two
+places, resolved when the controller configures:
+
+- **Embedded in the ONNX graph.** mjlab's motion-tracking exporter bundles the
+  whole reference motion into the checkpoint as initializers and adds a
+  `time_step` input, so the graph itself is the motion source. Such a checkpoint
+  is self-contained: no `.mcap` bag, no dataset fetch, and the frame indexing is
+  exactly the one the policy trained with. `humanoid_control_policy prepare`
+  detects this shape and skips the conversion step entirely.
+- **A `.mcap` motion bag.** The older path, still used by the piano task (a
+  key-pressed song bag plus a live key-state term) and by any tracking export
+  that does not carry its motion. `prepare` builds the bag from a LeRobot
+  dataset and points the controller at it via `motion_file`.
+
+If a checkpoint carries its own motion, that wins and any `motion_file` you pass
+is ignored (with a warning). A non-empty `motion_file` that fails to load is a
+hard error rather than a silent fallback — the policy's observation would be
+wrong without it.
 
 ## Button map
 
