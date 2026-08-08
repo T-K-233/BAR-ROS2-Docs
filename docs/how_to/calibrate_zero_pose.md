@@ -96,10 +96,15 @@ Ctrl+C
 The tool computes per joint:
 
 ```
-lower_offset  = sampled_min - lower_limit_urdf
-upper_offset  = sampled_max - upper_limit_urdf
+lower_offset  = sampled_min - target_lower
+upper_offset  = sampled_max - target_upper
 homing_offset = 0.5 * (lower_offset + upper_offset) * direction
 ```
+
+`target_lower` / `target_upper` are the URDF joint limits expressed in the
+**actuator** frame — the frame the samples are in. For a direct-drive joint the
+two frames coincide and these are just the URDF limits. For a joint driven
+through a linkage they do not; see [Four-bar joints](#four-bar-joints-the-biped-ankle) below.
 
 Then writes YAML to `./calibration.yaml` (cwd at launch time):
 
@@ -107,15 +112,80 @@ Then writes YAML to `./calibration.yaml` (cwd at launch time):
 Wrote calibration to /home/user/humanoid_control_ws/calibration.yaml
 ```
 
-If any joint had `sweep < 0.5 rad`, the tool **keeps its prior
-`homing_offset`** rather than overwriting with a value derived from a
-non-sweep. The list of preserved joints is printed; check it. Common
-reason for un-swept joints: you ran out of hands.
+### Joints the tool refuses to recompute
 
-If any joint's sampled range fell entirely outside the URDF range, the
-tool warns about a likely **`direction` flip** in the URDF for that
-joint. That's a URDF bug, not a calibration one — fix the
-`<param name="direction">` in `lite.ros2_control.xacro` and recalibrate.
+A joint is only recalibrated if the sweep actually reached **both** stops — the
+formula assumes the sampled extremes *are* the limits. Two gates, both must pass:
+
+| Gate | Default | Why |
+|---|---|---|
+| absolute sweep | `≥ 0.5 rad` | rejects a joint that never moved |
+| **coverage** | `≥ 0.9` of expected travel | rejects a joint that moved *incidentally* |
+
+The coverage gate matters because every joint is limp in zero-torque, so moving
+one limb back-drives its neighbours. An absolute floor alone cannot tell 0.7 rad
+of deliberate sweep from 0.7 rad of a neighbour being dragged — but as a
+*fraction* the two are obvious: an incidental joint lands at 20–25 % of its
+range, a swept one at 95–102 %.
+
+Joints failing either gate **keep their prior `homing_offset`**. The list is
+printed with each joint's coverage; check it.
+
+### Warnings to read, not skip
+
+- **`direction` flip** — a joint's sampled range fell entirely outside the URDF
+  range. That's a URDF bug, not a calibration one: fix the
+  `<param name="direction">` in `lite.ros2_control.xacro` and recalibrate.
+- **Travel mismatch** — the joint swept a different range than the model
+  predicts (`--travel-threshold`, default 0.05 rad). The two stops
+  over-determine one offset, so averaging them *hides* the disagreement; the
+  offset silently splits the difference and the joint zero ends up off by about
+  half the residual. A persistent mismatch means a hidden transmission, soft
+  stops, or wrong URDF limits.
+- **Unreachable linkage** — a four-bar cannot reach a declared URDF limit, so
+  the geometry or `alpha_zero` is wrong. The prior offset is preserved.
+
+## Four-bar joints (the biped ankle)
+
+The biped's `ankle_pitch` is not direct drive: the actuator sits in the shin and
+pushes a coupler rod to a crank on the foot. The transmission ratio varies over
+the range of motion, so the sampled **actuator** angle and the URDF's **joint**
+angle are not the same quantity — the tool refers the URDF limits through the
+linkage before differencing them.
+
+Two things follow, and both are handled for you:
+
+1. **The sweep must run with the linkage switched off.** With it on,
+   `/lite/joint_states` reports a transformed joint angle under an as-yet-unknown
+   offset, and any actuator angle outside the assemblable window reads as a hold
+   — the sweep would record garbage. `calibrate.launch.py` passes
+   `use_linkage:=false` automatically on the biped, the same way it forces
+   `calibration_file:=''`. You'll see the plugin warn that it is reporting **raw
+   actuator angles**; that is correct here and only here.
+
+2. **The two stops become a free check on the CAD geometry.** They
+   over-determine one offset, so the tool prints the actuator travel the linkage
+   *predicts* against what you actually swept:
+
+   ```
+   Four-bar cross-check — actuator travel the linkage PREDICTS vs. what was measured.
+     left_ankle_pitch    predicted= 84.563 deg  measured= 86.047 deg  (+1.75%)
+                         [direct-drive would predict  80.000]
+   ```
+
+   This is the measurement that discriminates between the two models: a
+   direct-drive assumption predicts the plain joint range (80°), the four-bar
+   predicts 84.563°, and the robot answers. A couple of percent over is normal —
+   the limp foot deflects against its stop. A result near the direct-drive
+   number means the linkage is not being applied.
+
+:::warning[The geometry is always published; only its *application* is gated]
+`use_linkage:=false` does **not** remove the `linkage_*` params from
+`/robot_description` — the mechanism is a physical fact, and the calibration
+tool reads that geometry to do the referring in step 1. The flag gates only
+whether the hardware plugin *applies* the transform. (An earlier version gated
+the geometry itself, which silently made the whole fix inert.)
+:::
 
 ## Step 4 — Promote the file
 
@@ -158,18 +228,36 @@ calibration is off by 1.5 rad for that joint; re-sweep that joint.
 
 ## Re-calibrating one joint
 
-The tool **preserves the prior `homing_offset`** for any joint with
-sweep below `sweep_threshold` (default 0.5 rad). So if you only need
-to recalibrate one joint, sweep just that one through its range,
-leave the others stationary, and Ctrl+C. The output will have new
-values for the swept joint and the original values for everything
-else.
+Joints that fail either gate **keep their prior `homing_offset`**, so a partial
+calibration is just a full one where you only sweep what you care about: move
+that joint through its range, leave the others alone, Ctrl+C. The output carries
+new values for the swept joint and the originals for everything else.
 
-Adjust the threshold if 0.5 rad is too generous (e.g. for joints with
-< 1 rad total range):
+Sweep the target joint **all the way**, though — the coverage gate wants ≥ 90 %
+of its travel, so a half-hearted sweep now silently preserves the old value
+instead of writing a bad one.
+
+:::danger[Priors come from the output file, not the committed config]
+"The original values for everything else" means *whatever is in the `--output`
+file* (default `./calibration.yaml`), **not** what is committed in
+`humanoid_bringup_lite/config/`. A stale or bad output file from an earlier run
+silently poisons every skipped joint — this is how one bad run's garbage
+propagated into the next.
+
+Before a partial calibration, seed the output from the good config:
+
+```bash
+cp src/humanoid_control/humanoid_bringup_lite/config/calibration.yaml ./calibration.yaml
+```
+:::
+
+Both gates are tunable — loosen `sweep_threshold` for joints with < 1 rad of
+total range, or `coverage` if a joint has a genuine mechanical limit short of
+its URDF range:
 
 ```bash
 ros2 launch humanoid_bringup_lite calibrate.launch.py sweep_threshold:=0.2
+ros2 launch humanoid_bringup_lite calibrate.launch.py coverage:=0.8
 ```
 
 ## See also
@@ -177,6 +265,6 @@ ros2 launch humanoid_bringup_lite calibrate.launch.py sweep_threshold:=0.2
 - [Concepts → Calibration math](../concepts/calibration_math.md) — the
   formula derivation and why it's split URDF + YAML.
 - [Reference → Launch args](../reference/launch_args.md#humanoid_bringup_litelaunchcalibratelaunchpy)
-  — the `output` and `sweep_threshold` args.
+  — the `output`, `sweep_threshold`, `coverage` and `travel_threshold` args.
 - The `calibrate_robot` source is ~250 lines in
   [`humanoid_bringup_lite/scripts/calibrate_robot.py`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_bringup_lite/scripts/calibrate_robot.py).
