@@ -251,12 +251,12 @@ cp src/humanoid_control/humanoid_bringup_lite/config/calibration.yaml ./calibrat
 ```
 :::
 
-Both gates are tunable — loosen `sweep_threshold` for joints with < 1 rad of
+Both gates are tunable on the script — loosen `--sweep-threshold` for joints with < 1 rad of
 total range, or `coverage` if a joint has a genuine mechanical limit short of
 its URDF range:
 
 ```bash
-ros2 launch humanoid_bringup_lite calibrate.launch.py sweep_threshold:=0.2
+ros2 run humanoid_bringup_lite calibrate_robot --output ./calibration.yaml --sweep-threshold 0.2
 ros2 launch humanoid_bringup_lite calibrate.launch.py coverage:=0.8
 ```
 
@@ -265,6 +265,6 @@ ros2 launch humanoid_bringup_lite calibrate.launch.py coverage:=0.8
 - [Concepts → Calibration math](../concepts/calibration_math.md) — the
   formula derivation and why it's split URDF + YAML.
 - [Reference → Launch args](../reference/launch_args.md#humanoid_bringup_litelaunchcalibratelaunchpy)
-  — the `output`, `sweep_threshold`, `coverage` and `travel_threshold` args.
+  — the `--output`, `--sweep-threshold`, `--coverage` and `--travel-threshold` flags.
 - The `calibrate_robot` source is ~250 lines in
   [`humanoid_bringup_lite/scripts/calibrate_robot.py`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_bringup_lite/scripts/calibrate_robot.py).
