@@ -54,8 +54,7 @@ is the source of truth — see [Architecture](architecture.md).)
 When to extend: appending a new joint at the end (e.g. the neck) is
 safe — old policies that consume only the first N entries still
 work. Inserting or reordering is not safe. The Lite URDF supports
-this directly via `mode:=arms` (14 joints, default) and
-`mode:=arms_neck` (17 joints, requires neck silicon).
+the joint list directly from `lite_hardware.yaml`'s `arm_joints` (14 joints).
 
 ### 2. `humanoid_control_msgs/MITCommand` fields
 

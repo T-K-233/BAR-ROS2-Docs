@@ -263,9 +263,9 @@ for which side runs which):
 
 | Launch | Deployment side | Hardware path | Selected xacro args |
 |---|---|---|---|
-| `real.launch.py` | Robot onboard computer | `humanoid_devices_robstride` / `humanoid_devices_sito` over SocketCAN (+ EtherCAT for Prime) | `use_fake_hardware:=false use_sim:=false` |
-| `mujoco.launch.py` | Single-machine sim/dev | `mujoco_ros2_control/MujocoSystem` inside `mujoco_sim` | `use_sim:=true` |
-| `calibrate.launch.py` | Single-machine (robot benchtop) | `humanoid_devices_robstride` with identity calibration + `calibrate_robot` observer | `use_fake_hardware:=false use_sim:=false` |
+| `real.launch.py` | Robot onboard computer | `humanoid_devices_robstride` / `humanoid_devices_sito` over SocketCAN (+ EtherCAT for Prime) | `use_mock_hardware:=false sim_mujoco:=false` |
+| `mujoco.launch.py` | Single-machine sim/dev | `mujoco_ros2_control/MujocoSystem` inside `mujoco_sim` | `sim_mujoco:=true` |
+| `calibrate.launch.py` | Single-machine (robot benchtop) | `humanoid_devices_robstride` with identity calibration + `calibrate_robot` observer | `use_mock_hardware:=false sim_mujoco:=false` |
 | `viz.launch.py` | Operator workstation (host) | DDS-consumer only; no controller_manager, no hardware | n/a — only subscribes |
 
 The first two launches:

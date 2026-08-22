@@ -774,7 +774,7 @@ def d_lite_mock_launch() -> None:
         mx = (x1 + x2) // 2
         s.append(label_pill(mx, y - 18, label))
 
-    step(120, 100, 280, "expand xacro (use_sim:=true)")
+    step(120, 100, 280, "expand xacro (sim_mujoco:=true)")
     step(150, 280, 100, "URDF")
     step(180, 100, 460, "start mujoco_sim")
     step(210, 460, 640, "load MujocoRos2ControlPlugin")
@@ -858,8 +858,8 @@ def d_xacro_3way() -> None:
     s.append(Box(40, 100, 180, 60, "lite.urdf.xacro",
                  fill=BLUE_FILL, stroke=BLUE).render())
 
-    # First branch: use_sim?
-    s.append(Box(280, 70, 130, 40, "use_sim?",
+    # First branch: sim_mujoco?
+    s.append(Box(280, 70, 130, 40, "sim_mujoco?",
                  fill=LIGHT, stroke=GREY).render())
     s.append(arrow(220, 130, 280, 90))
     s.append(label_pill(250, 110, "args"))
@@ -870,7 +870,7 @@ def d_xacro_3way() -> None:
     s.append(arrow(410, 80, 470, 75, label="true"))
 
     # No -> second branch
-    s.append(Box(280, 200, 180, 40, "use_fake_hardware?",
+    s.append(Box(280, 200, 180, 40, "use_mock_hardware?",
                  fill=LIGHT, stroke=GREY).render())
     s.append(arrow(345, 110, 345, 200, label="false"))
 
@@ -886,7 +886,7 @@ def d_xacro_3way() -> None:
     s.append(arrow(370, 240, 490, 305, label="false"))
 
     s.append(text(380, 365,
-                  "use_sim wins over use_fake_hardware when both are true",
+                  "sim_mujoco wins over use_mock_hardware when both are true",
                   size=11, fill=GREY, anchor="middle"))
 
     s.append(footer())

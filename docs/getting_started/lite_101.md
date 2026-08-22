@@ -48,8 +48,8 @@ What you'll see:
 :::tip["What is xacro doing?"]
 The `.xacro` file is a Jinja-ish macro language for URDFs. The top-level
 `lite.urdf.xacro` includes `lite.ros2_control.xacro`, which selects the
-`<plugin>` based on the `use_sim` / `use_fake_hardware` args. For RViz
-visualization we force `use_fake_hardware:=true` so the `<ros2_control>`
+`<plugin>` based on the `sim_mujoco` / `use_mock_hardware` args. For RViz
+visualization we force `use_mock_hardware:=true` so the `<ros2_control>`
 block is harmless (`mock_components/GenericSystem`, which never gets
 loaded because RViz doesn't spawn `controller_manager`).
 :::

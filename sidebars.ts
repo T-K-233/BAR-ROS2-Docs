@@ -67,6 +67,7 @@ const sidebars: SidebarsConfig = {
         'concepts/workspace_and_environment',
         'concepts/five_mode_fsm',
         'concepts/mit_command_surface',
+        'concepts/hardware_backend_selection',
         'concepts/prime_hybrid_actuation',
         'concepts/calibration_math',
         'concepts/safety_pipeline',
