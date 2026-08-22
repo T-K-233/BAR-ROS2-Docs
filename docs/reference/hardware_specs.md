@@ -8,8 +8,7 @@ topology** on Lite and Prime. The numbers here drive the joint limits in
 ## Lite humanoid
 
 Bimanual upper body. **14 actuated DOFs** by default
-(`mode:=arms`, 7 per arm). **17 actuated DOFs** when the neck silicon is
-present (`mode:=arms_neck`, 7 + 7 + 3). The URDF kinematic chain always
+(7 per arm). The URDF kinematic chain always
 includes the neck links so `robot_state_publisher` exposes the same tf
 either way; the `<ros2_control>` neck block is added only in the
 17-joint mode.
@@ -40,7 +39,7 @@ policy is trained against this order, it is frozen — see "Frozen schemas" in
 | 12 | `right_wrist_roll`    | 26 | can1 | rs-05 | +1 | −0.698 | 0.698 |  4.0 | 14 | 50.0 | 2.0 |
 | 13 | `right_wrist_pitch`   | 27 | can1 | rs-05 | −1 | −0.785 | 0.785 |  4.0 | 14 | 50.0 | 2.0 |
 
-(In `mode:=arms_neck`, indices 14–16 = `neck_yaw`, `neck_roll`,
+(Were the neck wired, indices 14–16 would be `neck_yaw`, `neck_roll`,
 `neck_pitch`, all rs-00-class with `K_p ≈ 30`, `K_d ≈ 1`.)
 
 :::tip[Where these numbers come from]
@@ -56,7 +55,7 @@ the generated file):
 <xacro:lite_dummy_joint name="left_shoulder_pitch" can_id="11" model="rs-02" direction="-1"
                   lower_limit="-3.141592653589793" upper_limit="0.7853981633974483"
                   torque_limit="17" current_limit="27"
-                  use_fake_hardware="${use_fake_hardware}" use_sim="${use_sim}"/>
+/>
 ```
 
 xacro expands those into `<param>` children on the `<joint>` element, which

@@ -3,8 +3,8 @@
 Every Humanoid Control bringup follows the same vocabulary. Each robot ships **two
 parallel launches** — `real.launch.py` for silicon, `mujoco.launch.py` for
 MuJoCo physics. Operators pick the *launch file* rather than flipping a
-`use_fake_hardware` flag on a single one. The xacro still accepts
-`use_fake_hardware:=true` for direct ad-hoc visualization, but no
+`use_mock_hardware` flag on a single one. The xacro still accepts
+`use_mock_hardware:=true` for direct ad-hoc visualization, but no
 bundled launch enables that path.
 
 Launches live in two repos:
@@ -22,9 +22,8 @@ URDF inspector — no controller_manager, no physics.
 
 | Arg | Default | Effect |
 |---|---|---|
-| `rviz_config` | bundled `view_lite.rviz` | Override with your own RViz layout. |
 
-Implicit: forces `use_fake_hardware:=true` on the xacro so the
+Implicit: forces `use_mock_hardware:=true` on the xacro so the
 `<ros2_control>` block is harmless when `robot_state_publisher` parses
 the URDF.
 
@@ -36,7 +35,6 @@ instances, one per physical SocketCAN bus (`LiteLeftArm` claims CAN ids
 
 | Arg | Default | Effect |
 |---|---|---|
-| `mode`                | `arms` | `arms` = 14 joints (default). `arms_neck` = 17 joints (requires neck silicon). |
 | `hardware_config`     | `<humanoid_bringup_lite share>/config/lite_hardware.yaml` | Per-machine bus + joint config. Maps the two `<ros2_control>` blocks to specific SocketCAN ifnames and joint IDs. Override to retarget a robot whose CAN ifnames differ. |
 | `calibration_file`    | `<humanoid_bringup_lite share>/config/calibration.yaml` | Absolute path to the per-physical-robot zero-offset YAML. Pass `''` for identity calibration (only the URDF `direction` sign flip applies, no offset). See [Hardware specs → Bus-bring-up checklist](./hardware_specs.md#bus-bring-up-checklist) for how to regenerate. |
 | `enable_joy_teleop` | `true` | `true` spawns the `joy_teleop` node that maps gamepad buttons directly to `/controller_manager/switch_controller`. `false` skips it — used by `calibrate.launch.py` and raw-debug bringups where the operator drives controllers directly via `ros2 control switch_controllers`. |
@@ -57,7 +55,7 @@ spawns no viewers. Run `ros2 launch humanoid_bringup_lite viz.launch.py`
 on the operator workstation (see the
 [`viz.launch.py` section](#humanoid_bringup_litelaunchvizlaunchpy) below).
 
-Implicit on the xacro: `use_fake_hardware:=false use_sim:=false`.
+Implicit on the xacro: `use_mock_hardware:=false sim_mujoco:=false`.
 
 ## `humanoid_bringup_lite/launch/viz.launch.py`
 
@@ -89,7 +87,6 @@ which is the frame the homing-offset formula expects.
 |---|---|---|
 | `hardware_config` | `<bundled lite_hardware.yaml>` | Forwarded to `real.launch.py`. |
 | `output` | `$PWD/calibration.yaml` | Path the calibration observer writes on Ctrl+C. After verifying, `mv` it over `humanoid_bringup_lite/config/calibration.yaml` to make it the default for the next `real.launch.py`. |
-| `sweep_threshold` | `0.5` | Minimum joint sweep (rad) below which the prior `homing_offset` is preserved instead of recomputed. Lets you re-calibrate one or two joints at a time without losing the others. |
 
 The observer reads per-joint static config (`direction`, `lower_limit`,
 `upper_limit`, `can_id`) from `/robot_description` — there's no parallel
@@ -106,15 +103,14 @@ plugin).
 
 | Arg | Default | Effect |
 |---|---|---|
-| `mode` | `arms` | Same as the real bringup. `arms` (14 joints) or `arms_neck` (17 joints). |
 | `hardware_config` | `<bundled lite_hardware.yaml>` | Same as the real bringup; the bus mapping is unused in MuJoCo but the joint list is read. |
 | `scene` | `lite_dummy` | MJCF scene basename under `lite_description/robots/lite_dummy/mjcf/`. Default `lite_dummy` (robot only). Task packages from sibling repos (e.g. `pianist_ros2`'s `pianist_bringup`) compose their own runtime scene XML and override this arg with their composed-file basename. |
 | `enable_gamepad` | `true` | Same hard-fail-on-missing-`/dev/input/js*` behaviour as the real bringup. |
 
 Implicit:
 
-- The xacro is invoked with `use_sim:=true`. **`use_sim` wins over
-  `use_fake_hardware`** in the xacro's `<plugin>` selector — see the
+- The xacro is invoked with `sim_mujoco:=true`. **`sim_mujoco` wins over
+  `use_mock_hardware`** in the xacro's `<plugin>` selector — see the
   decision tree in [Packages](packages.md#lite_description--prime_description-external).
 - Every node runs with `use_sim_time:=true`. Time advances at MuJoCo's
   pace via `/clock`.
@@ -212,7 +208,7 @@ Also spawns the `piano_state_bridge` sim-side bridge so
 | Arg | Default | Effect |
 |---|---|---|
 | `enable_gamepad` | `true` | Forwarded to `humanoid_bringup_lite/mujoco.launch.py`. |
-| `mode` | `arms` | Forwarded. |
+| `robot_type` | `arms` | `arms`, `biped` or `biped_debug`. Selects the bring-up launch and the lite_description variant. |
 | `hardware_config` | `<humanoid_bringup_lite share>/config/lite_hardware.yaml` | Forwarded. |
 
 `scene:=` is **not** exposed — `pianist_bringup` controls that internally.
@@ -224,9 +220,8 @@ xacro directly (e.g. in a sim2sim eval harness):
 
 | Arg | Default | Effect |
 |---|---|---|
-| `use_fake_hardware` | `true` | Select `mock_components/GenericSystem` — single combined `<ros2_control>` block. Only the **xacro layer** exposes this; no bundled launch uses it today. |
-| `use_sim` | `false` | **Wins over `use_fake_hardware`** — select `mujoco_ros2_control/MujocoSystem`, also single combined block. |
-| `mode` | `arms` | `arms` (14 joints) or `arms_neck` (17 joints). Selects which `<ros2_control>` block(s) the xacro emits. |
+| `use_mock_hardware` | `true` | Select `mock_components/GenericSystem` — single combined `<ros2_control>` block. |
+| `sim_mujoco` | `false` | **Wins over `use_mock_hardware`** — select `mujoco_ros2_control/MujocoSystem`, also single combined block. |
 | `hardware_config` | (empty) | YAML the xacro reads to learn the per-machine bus + joint mapping. The launches set this; ad-hoc xacro calls usually leave it empty. |
 | `calibration_file`    | `""`   | Passed verbatim as a `<param name="calibration_file">` on both real-hardware blocks. Empty = identity calibration. |
 

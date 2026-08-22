@@ -16,12 +16,16 @@ Declared in `lite_description/robots/lite_dummy/xacro/lite_dummy.urdf.xacro`:
 
 | Arg | Default | Effect |
 |---|---|---|
-| `use_fake_hardware` | `true` | Select `mock_components/GenericSystem` — single combined `<ros2_control>` block. Only the **xacro layer** exposes this; no bundled launch uses it today. |
-| `use_sim` | `false` | **Wins over `use_fake_hardware`** — select `mujoco_ros2_control/MujocoSystem`, single combined block. |
-| `mode` | `arms` | `arms` (14 joints) or `arms_neck` (17 joints). Selects which `<ros2_control>` block(s) the xacro emits. |
+| `use_mock_hardware` | `true` | Select `mock_components/GenericSystem` — single combined `<ros2_control>` block. |
+| `sim_mujoco` | `false` | **Wins over `use_mock_hardware`** — select `mujoco_ros2_control/MujocoSystem`, single combined block. |
 | `can_interface_left` | `can0` | SocketCAN interface for the **left** arm (real-hardware path only). |
 | `can_interface_right` | `can1` | SocketCAN interface for the **right** arm (real-hardware path only). |
 | `calibration_file`    | `""` | Absolute path to the per-physical-robot calibration YAML. Empty = identity calibration. |
+
+The biped variants (`lite_biped`, `lite_biped_debug`) add two more: `imu_port` for the
+base IMU's serial device, and `use_linkage`, which switches whether the plugin applies
+the ankle four-bar transform. Calibration sets `use_linkage:=false` because it needs raw
+actuator angles.
 
 :::note[`hardware_config` is a *launch* arg, not a xacro arg]
 The xacro takes the two bus names directly (`can_interface_left` /
@@ -35,13 +39,17 @@ when driving xacro by hand.
 The xacro selects between three plugin paths based on these:
 
 ```
-use_sim:=true                        -> mujoco_ros2_control/MujocoSystem
-use_fake_hardware:=true (use_sim:=false) -> mock_components/GenericSystem
-(both false)                         -> humanoid_devices_robstride/RobstrideSystem
+sim_mujoco:=true                             -> mujoco_ros2_control/MujocoSystem
+use_mock_hardware:=true (sim_mujoco:=false)  -> mock_components/GenericSystem
+(both false)                                 -> humanoid_devices_robstride/RobstrideSystem
 ```
 
-`use_sim` wins over `use_fake_hardware` — same precedence as the
-franka_ros2 / Universal_Robots_ROS2_Driver convention.
+`sim_mujoco` wins over `use_mock_hardware`. The naming follows the
+Universal_Robots_ROS2_Description convention: one boolean per non-real backend, real
+hardware as the fallback. See
+[Concepts → Hardware backend selection](../concepts/hardware_backend_selection.md) for why
+these two args are named this way, and note that `sim_mujoco` is unrelated to the
+`use_sim_time` node parameter.
 
 ## `<ros2_control>` block structure
 
@@ -69,8 +77,7 @@ blocks:
 ```
 
 On the **sim / mock paths** the xacro emits one combined block with
-all joints (no `can_interface`, no `calibration_file`). The joint
-count is 14 (`mode:=arms`) or 17 (`mode:=arms_neck`).
+all joints (no `can_interface`, no `calibration_file`).
 
 ## Hardware-level `<param>`s (real-hardware path)
 
@@ -84,12 +91,12 @@ Inside the `<hardware>` element of each `<ros2_control>` block:
 | `rx_timeout_ms` | int | `200` | Per-joint silence threshold before `FLAG_RX_TIMEOUT` is raised |
 | `write_firmware_limits` | bool | `false` | When `true`, push per-joint `torque_limit` / `current_limit` to actuator firmware via WriteParameter on activate. Off by default because the burst writes overflow some adapters' TX FIFOs. |
 
-## Per-joint `<param>`s (real-hardware path)
+## Per-joint `<param>`s (every backend)
 
-Inside each `<joint>` element. The `lite_dummy_joint` xacro macro emits
-these only when `use_sim` and `use_fake_hardware` are both false —
-mock / sim plugins ignore unknown joint params so the macro keeps
-the URDF clean there.
+Inside each `<joint>` element. The `lite_dummy_joint` xacro macro emits these on
+**every** backend, not just the real one: `MujocoSystem` reads only `mimic` and
+`multiplier` from a joint's params, and `mock_components/GenericSystem` ignores the rest,
+so the joint macros stay backend-agnostic and no hardware switch reaches a `<joint>`.
 
 | Param | Type | Required? | Description |
 |---|---|---|---|
@@ -134,7 +141,7 @@ the same 5 command interfaces and 3 state interfaces:
   <state_interface name="position"/>
   <state_interface name="velocity"/>
   <state_interface name="effort"/>
-  <!-- per-joint <param> children only on the real-hardware path -->
+  <!-- per-joint <param> children, on every backend -->
 </joint>
 ```
 
@@ -154,18 +161,17 @@ cd humanoid_control_ws && pixi shell
 
 # Mock / RViz path
 xacro $(ros2 pkg prefix lite_description)/share/lite_description/robots/lite_dummy/xacro/lite_dummy.urdf.xacro \
-    use_fake_hardware:=true \
+    use_mock_hardware:=true \
     > /tmp/lite_mock.urdf
 
 # MuJoCo path
 xacro $(ros2 pkg prefix lite_description)/share/lite_description/robots/lite_dummy/xacro/lite_dummy.urdf.xacro \
-    use_sim:=true \
+    sim_mujoco:=true \
     > /tmp/lite_sim.urdf
 
 # Real-hardware path
 xacro $(ros2 pkg prefix lite_description)/share/lite_description/robots/lite_dummy/xacro/lite_dummy.urdf.xacro \
-    use_fake_hardware:=false use_sim:=false \
-    mode:=arms \
+    use_mock_hardware:=false sim_mujoco:=false \
     can_interface_left:=can0 can_interface_right:=can1 \
     calibration_file:=/abs/path/to/calibration.yaml \
     > /tmp/lite_real.urdf
@@ -185,3 +191,5 @@ errors.
   — why the interface set is what it is.
 - [How-to → Add a new joint](../how_to/add_new_joint.md) — recipe for
   extending the URDF.
+- [Concepts → Hardware backend selection](../concepts/hardware_backend_selection.md)
+  — why the backend args are shaped and named the way they are.

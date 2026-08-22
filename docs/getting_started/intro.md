@@ -40,7 +40,7 @@ result is N × M code paths, where N is robots and M is tasks.
 | Axis | Where the variation lives |
 |---|---|
 | Robot (Lite / Prime) | URDF + which `<ros2_control>` `<plugin>` is selected |
-| Hardware tier (mock / sim / real) | a single xacro arg (`use_fake_hardware` / `use_sim`) |
+| Hardware tier (mock / sim / real) | two xacro args (`use_mock_hardware` / `sim_mujoco`) |
 | Task (tracking / piano / locomotion) | the `.onnx` + `.mcap` loaded into the one in-process `RLPolicyController` (the ONNX `task_type` selects observation terms) |
 
 Everything else is shared. Every learned policy is **System 0**: it

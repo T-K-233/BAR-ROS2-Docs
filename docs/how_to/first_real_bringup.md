@@ -71,7 +71,7 @@ pixi shell    # enter the workspace env so ros2 is on PATH
 ros2 launch humanoid_bringup_lite real.launch.py
 ```
 
-Default args: `mode:=arms hardware_config:=<bundled lite_hardware.yaml>
+Default args: `hardware_config:=<bundled lite_hardware.yaml>
 calibration_file:=<bundled> enable_joy_teleop:=true
 enable_gamepad:=true joy_dev:=/dev/input/js0`. The `hardware_config`
 YAML provides the per-machine bus + joint mapping (left arm on `can0`
