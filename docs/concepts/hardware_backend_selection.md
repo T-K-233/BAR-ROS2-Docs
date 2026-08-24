@@ -6,7 +6,9 @@ title: Hardware backend selection
 
 A description package has to describe one robot that runs on three different plants: real
 actuators on a bus, a physics simulator, and nothing at all. This page records how
-`lite_description` chooses between them, and why it is shaped the way it is.
+`lite_description` and `prime_description` choose between them, and why the choice is
+shaped the way it is. Both take the two switch names from the shared `robot_assets`
+generator, so they cannot drift apart.
 
 ## The three backends
 
@@ -41,7 +43,7 @@ Gazebo: a second simulator would be a second boolean, not a redefinition of the 
 
 ### Why the names changed
 
-Both args were renamed in the `lite_description` cleanup:
+Both args carry names that replaced earlier ones:
 
 - `use_fake_hardware` became `use_mock_hardware`. `fake_components` was renamed
   `mock_components` in ROS 2 Iron, and `fake_sensor_commands` became
