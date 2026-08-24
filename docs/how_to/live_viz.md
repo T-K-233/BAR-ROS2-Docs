@@ -25,7 +25,7 @@ already pulled them in. No extra `pip install` step is needed.
 
 `viz.launch.py` is the host-side entrypoint of the two-machine
 tethered split: it subscribes over DDS to the `/lite/joint_states`
-stream `real.launch.py` publishes from the onboard computer and
+stream `lite_real.launch.py` publishes from the onboard computer and
 renders the live pose on the operator workstation.
 
 Inside the workspace env (`cd humanoid_control_ws && pixi shell`):
@@ -46,7 +46,7 @@ moves between training-time and deployment-time scripts. Pick `viser`
 for headless / screen-recorded / shareable sessions; pick `rerun` for
 local timeline scrubbing on a workstation with a display.
 
-`real.launch.py` itself does **not** spawn the viewers — visualisers
+`lite_real.launch.py` itself does **not** spawn the viewers — visualisers
 are host-side by deployment policy. See
 [Architecture → deployment topology](../concepts/architecture.md)
 for the rationale.

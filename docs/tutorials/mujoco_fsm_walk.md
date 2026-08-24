@@ -57,7 +57,7 @@ If `joy_node` errors with permissions, your user isn't in the
 ## Step 1 — Launch with the gamepad
 
 ```bash
-ros2 launch humanoid_bringup_lite mujoco.launch.py
+ros2 launch humanoid_bringup_lite lite_mujoco.launch.py
 # `enable_gamepad:=true` is already the default; the launch hard-fails
 # if no joystick is detected. Pass enable_gamepad:=false to bypass.
 # `enable_joy_teleop:=true` is also default — it starts the joy_teleop

@@ -33,11 +33,12 @@ EtherCAT, through the IgH master); two — the distal wrist roll/pitch — are
 So the EtherCAT ring carries **10 eRob** (positions 0-9, left arm 0-4, right
 arm 5-9) and the CAN bus carries **4 Sito** wrists (ids `0x16/0x17/0x26/0x27`).
 All Prime eRob are **50:1** gear. The single source of truth for this mapping
-is `humanoid_bringup_prime/config/prime_hardware.yaml` (`buses`, `joints.all_joints`,
-`joints.erob_slaves`, `joints.mit_joints`); the per-joint bus assignment is
+is `humanoid_bringup_prime/config/prime_hardware.yaml` — `buses` for the two
+buses and `erob.slaves` for the ring positions. The joint list itself lives in
+`prime_controllers.yaml`, under each controller. The per-joint bus assignment is
 emitted by `prime_description` (`robots/prime_dummy/xacro/prime_dummy.ros2_control.xacro`).
 
-Note the **kinematic order** in `all_joints` (shoulder pitch/roll/yaw, elbow,
+Note the **kinematic order** of that list (shoulder pitch/roll/yaw, elbow,
 wrist roll/pitch/yaw) is not the **ring order** — `wrist_yaw` is eRob position
 4/9 even though it sits distal of the two Sito wrists. Controllers bind to the
 flat 14-joint `all_joints` list regardless of which bus carries each joint.
@@ -55,17 +56,17 @@ constant (read each joint's model off its label; see the eRob manual §25.2):
 The 1.5% `Kt` difference is negligible in practice; the **gear ratio** would
 be the real lever, but every Prime eRob is 50:1, so a single conversion
 serves all of them. `humanoid_bringup_prime/config/prime_hardware.yaml` can still
-override `Kt`/gear per joint (`joints.erob_kt` / `joints.erob_gear`) if a model
-ever differs.
+override `Kt` or gear per joint (`erob.kt` / `erob.gear`) if a model ever
+differs.
 
 ## One controller_manager, two ros2_control blocks
 
-`real.launch.py` expands the xacro with `use_fake_hardware:=false use_sim:=false`,
+`prime_real.launch.py` expands the xacro with `use_mock_hardware:=false sim_mujoco:=false`,
 which emits **two concurrent `ros2_control` blocks** — `PrimeEtherCATSide`
 (`ethercat_driver/EthercatDriver`, the 10 eRob) and `PrimeSitoCAN`
 (`humanoid_devices_sito/SitoSystem`, the 4 Sito wrists). One `controller_manager` runs them
 together and exposes a flat 14-joint list to the mode controllers. The sim path
-(`mujoco.launch.py`) collapses both into one `MujocoSystem` block but presents
+(`prime_mujoco.launch.py`) collapses both into one `MujocoSystem` block but presents
 the identical 14 joints, so the shared controllers run unchanged.
 
 Two bringup details are load-bearing:
@@ -74,7 +75,7 @@ Two bringup details are load-bearing:
   SYNC0 cycle is driven from the controller_manager's `update()` loop, not a
   separate thread. If `control_frequency` is higher than `update_rate`, SYNC0
   fires more often than process-data frames arrive, the distributed clock can't
-  lock, and the drives fault. `real.launch.py` reads `update_rate` out of the
+  lock, and the drives fault. `prime_real.launch.py` reads `update_rate` out of the
   controllers YAML and derives `control_frequency` from it so they cannot
   diverge.
 - **Spawners are sequenced** (`joint_state_broadcaster` → `zero_torque_controller`

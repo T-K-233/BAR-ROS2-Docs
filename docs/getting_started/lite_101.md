@@ -35,7 +35,7 @@ The simplest possible launch: `robot_state_publisher` + a
 the kinematic chain.
 
 ```sh
-ros2 launch humanoid_bringup_lite view_lite.launch.py
+ros2 launch humanoid_bringup_lite lite_view.launch.py
 ```
 
 What you'll see:
@@ -70,7 +70,7 @@ below. Nothing on the CAN bus — the
 the Robstride firmware computes on silicon.
 
 ```sh
-ros2 launch humanoid_bringup_lite mujoco.launch.py
+ros2 launch humanoid_bringup_lite lite_mujoco.launch.py
 ```
 
 A **MuJoCo viewer window** opens with the Lite humanoid at zero pose.

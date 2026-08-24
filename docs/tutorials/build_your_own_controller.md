@@ -232,7 +232,7 @@ ros2 control list_controller_types | grep Hello
 ```bash
 # Bring up Lite with joy_teleop disabled so its button bindings don't
 # switch controllers out from under our hand-loaded one:
-ros2 launch humanoid_bringup_lite mujoco.launch.py enable_joy_teleop:=false
+ros2 launch humanoid_bringup_lite lite_mujoco.launch.py enable_joy_teleop:=false
 ```
 
 In another terminal, load the controller via the CLI (inside

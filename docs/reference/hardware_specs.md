@@ -96,7 +96,7 @@ the `lite_description` repo and flows back through `bar.repos`:
    # If a bringup is already running, Ctrl+C it first — the firmware-side
    # caps are written on the `on_activate` transition, so an already-
    # activated plugin won't pick up the new value until the next bringup.
-   ros2 launch humanoid_bringup_lite real.launch.py
+   ros2 launch humanoid_bringup_lite lite_real.launch.py
    ```
 
    For a throwaway bench experiment, edit the caps directly in the vcs-imported
@@ -171,7 +171,7 @@ ros2 launch humanoid_bringup_lite calibrate.launch.py
 # Hand-sweep every joint to both extremes. Ctrl+C to write calibration.yaml.
 
 # 4. Real-hardware bringup.
-ros2 launch humanoid_bringup_lite real.launch.py
+ros2 launch humanoid_bringup_lite lite_real.launch.py
 ```
 
 If `pixi run scan-bus` reports `ENOBUFS` / TX-drop warnings, the actuator

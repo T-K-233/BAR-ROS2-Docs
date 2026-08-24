@@ -29,7 +29,7 @@ The Lite/eRob difference is **where the offset is applied**. Lite owns its hardw
 interface, so it subtracts `homing_offset` in `read()`/`write()`. The eRob runs on the
 third-party `ethercat_driver`, which we do not fork — so `scripts/fold_calibration.py`
 folds the offset into each joint's PDO `factor`/`offset` in a generated per-slave
-config, and `real.launch.py` hands that to the xacro at launch via the
+config, and `prime_real.launch.py` hands that to the xacro at launch via the
 `erob_config_dir` argument. No drive-NVM writes; the calibration stays in one
 git-tracked YAML.
 
@@ -103,7 +103,7 @@ joint with too small a sweep (skipped, prior kept) or `abs(homing_offset) > pi` 
 ## Step 3 — Apply and verify
 
 Copy the reviewed file over `humanoid_bringup_prime/config/prime_calibration.yaml`.
-`real.launch.py` folds it into per-joint configs automatically at launch. To verify the
+`prime_real.launch.py` folds it into per-joint configs automatically at launch. To verify the
 sign end-to-end, fold it, re-launch, and move one joint to a known stop — at the stop,
 `/joint_states` should read that joint's URDF limit.
 
@@ -175,7 +175,7 @@ the ring is exactly these 10 drives.
   is no separate EtherCAT thread), so the DC SYNC0 cycle — set by `control_frequency` —
   must match the loop rate. Mismatched (e.g. `control_frequency=1000` against a 50 Hz
   loop) the drives see SYNC0 firing far more often than frames arrive and fault in steady
-  state (status `4616`/`520`, domain WC collapses). `real.launch.py` derives
+  state (status `4616`/`520`, domain WC collapses). `prime_real.launch.py` derives
   `control_frequency` from the controllers YAML `update_rate` so they cannot diverge; if
   you set it by hand, keep them equal. This is the usual cause of "eRob hold for a moment,
   then fault".

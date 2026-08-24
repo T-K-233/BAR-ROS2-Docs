@@ -151,7 +151,7 @@ existing `homing_offset` entries. Move the resulting
 ## Step 5 — Verify
 
 ```bash
-ros2 launch humanoid_bringup_lite real.launch.py
+ros2 launch humanoid_bringup_lite lite_real.launch.py
 ```
 
 In a second terminal:

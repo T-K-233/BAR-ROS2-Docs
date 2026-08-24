@@ -42,7 +42,7 @@ pixi shell
 ros2 launch humanoid_bringup_lite calibrate.launch.py
 ```
 
-`calibrate.launch.py` includes `real.launch.py` with three overrides:
+`calibrate.launch.py` includes `lite_real.launch.py` with three overrides:
 `calibration_file:='' enable_joy_teleop:='false' enable_gamepad:='false'`.
 The empty calibration means `/lite/joint_states` carries the
 `direction × raw_motor_pos` frame — exactly what the homing-offset
@@ -206,7 +206,7 @@ colcon build --symlink-install --packages-select humanoid_bringup_lite
 Relaunch the normal real bringup (without the calibration override):
 
 ```bash
-ros2 launch humanoid_bringup_lite real.launch.py
+ros2 launch humanoid_bringup_lite lite_real.launch.py
 ```
 
 Watch for the per-bus calibration-load log:

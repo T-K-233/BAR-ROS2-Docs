@@ -78,7 +78,7 @@ platforms = ["linux-64", "linux-aarch64"]
 # ROS 2 CLI + launch + runtime (ros2 launch / run / pkg). The bar packages
 # declare their library deps but not the CLI tooling, so pull a ROS base
 # yourself. Use ros-jazzy-desktop instead if you want the RViz-based
-# viewers (`view_lite.launch.py`).
+# viewers (`lite_view.launch.py`).
 ros-jazzy-ros-base = "*"
 # The whole Lite bringup: humanoid_controllers (ONNX-enabled), humanoid_control_msgs,
 # lite_description, humanoid_devices_robstride, humanoid_drivers_socketcan, humanoid_control_common, humanoid_control_policy.
@@ -104,7 +104,7 @@ fails with `invalid choice: 'launch'`. The from-source workspace gets this from
 
 ```sh
 pixi install
-pixi run ros2 launch humanoid_bringup_lite real.launch.py
+pixi run ros2 launch humanoid_bringup_lite lite_real.launch.py
 ```
 
 `pixi install` downloads the prebuilt `ros-jazzy-humanoid-control-*` binaries plus the
@@ -116,7 +116,7 @@ so `ros2 launch …` / `ros2 run …` work inside `pixi shell` (or via
 ```sh
 pixi shell
 ros2 pkg list | grep '^humanoid_control_'                              # the humanoid_control_* packages you pulled in
-ros2 launch humanoid_bringup_lite real.launch.py --show-args   # dry-parse the launch (no hardware)
+ros2 launch humanoid_bringup_lite lite_real.launch.py --show-args   # dry-parse the launch (no hardware)
 ros2 run humanoid_devices_robstride robstride_discover --iface can0 --scan-to 32   # read-only CAN scan, e.g.
 ```
 
@@ -128,7 +128,7 @@ into your `pixi.toml`.
 :::note[What the channel ships today]
 `berkeley-humanoids` carries the **`ros-jazzy-humanoid-control-*` packages** for both `linux-64`
 and `linux-aarch64` (Jetson). That covers the full control stack and the
-real-hardware **Lite** bringup (`real.launch.py`). Not yet published: the MuJoCo
+real-hardware **Lite** bringup (`lite_real.launch.py`). Not yet published: the MuJoCo
 simulation deps (`mujoco_*`), the piano task (`pianist_*`), and the EtherCAT /
 **Prime** packages — for those, use **Build from source** below. They land in
 the channel as the buildfarm expands.
