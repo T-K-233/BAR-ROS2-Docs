@@ -218,7 +218,7 @@ project:
 
 Every controller in `humanoid_controllers` claims **all five** command interfaces,
 even when it only writes some of them (writing zero to the rest is the safe
-default — for example `ZeroTorqueController` writes 0 to everything;
+default — for example the `zero_torque_controller` instance writes 0 to everything;
 `DampingController` writes `K=0, D=damping_value, q_cmd=captured_q`).
 
 :::tip[Why this convention pays off]

@@ -93,7 +93,7 @@ Expected output (give or take):
 
 ```
 joint_state_broadcaster   joint_state_broadcaster/JointStateBroadcaster   active
-zero_torque_controller    humanoid_control/ZeroTorqueController                        active
+zero_torque_controller    humanoid_control/DampingController                           active
 damping_controller        humanoid_control/DampingController                           inactive
 standby_controller_a      humanoid_control/StandbyController                           inactive
 standby_controller_b      humanoid_control/StandbyController                           inactive
@@ -186,7 +186,7 @@ Verify:
 ```sh
 ros2 control list_controllers
 # damping_controller        humanoid_control/DampingController                           active
-# zero_torque_controller    humanoid_control/ZeroTorqueController                        inactive
+# zero_torque_controller    humanoid_control/DampingController                           inactive
 ```
 
 :::tip[Why DAMPING is the "compliant fail-safe"]

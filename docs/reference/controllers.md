@@ -18,46 +18,34 @@ for the mode overview.
 
 ## Plugin-by-plugin
 
-### `humanoid_control/ZeroTorqueController`
+### `humanoid_control/DampingController`
 
-**Role**: startup default; safer fault fallback.
+**Role**: joint-space damping hold. Two instances of it provide two modes —
+`zero_torque_controller` is the startup default and the final fallback, and
+`damping_controller` is the compliant fault fallback.
 
-**Claims**: position, velocity, effort, stiffness, damping on every joint.
+One class, because they are one law at two gains. The *Springer Handbook of
+Robotics* (Villani & De Schutter, "Force Control" §7.2.2) names the `K_P = 0`
+case **damping control**, and zero torque is that law at `K_D = 0`. Unitree's
+SDK draws the same line as two FSM ids rather than two implementations:
+`ZeroTorque()` is id 0 and `Damp()` is id 1.
 
-**Writes** every tick: `0` to all 5 command interfaces.
+**Claims**: position, velocity, effort, stiffness, damping on every joint;
+position and velocity state.
+
+**Writes** every tick: the position captured at activation, zero velocity, zero
+effort, zero stiffness, and `damping` on the velocity term. A MIT joint
+therefore produces `tau = -damping * qdot`, which is zero torque at
+`damping: 0.0`. A CiA402 joint has no impedance interface and cannot go limp, so
+it tracks the captured position as a servo target instead.
 
 **Parameters**:
 
 | Param | Type | Default | Description |
 |---|---|---|---|
 | `joints` | `string[]` | — | Required. Joint names to claim (must match URDF). |
-
-### `humanoid_control/DampingController`
-
-**Role**: compliant fail-safe. The robot stays **soft under gravity** but
-**resists velocity**.
-
-**Mechanics**: on `on_activate`, captures the current joint positions into
-`captured_position_`. Every tick writes:
-
-| Interface | Value |
-|---|---|
-| `position` | `captured_position_[i]` |
-| `velocity` | `0` |
-| `effort`   | `0` |
-| `stiffness`| `0` |
-| `damping`  | `damping_value_[i]` |
-
-With `stiffness = 0`, no restoring force; with `damping > 0`, viscous
-resistance.
-
-**Parameters**:
-
-| Param | Type | Default | Description |
-|---|---|---|---|
-| `joints` | `string[]` | — | Required. |
-| `damping` | `float64[]` | `[]` | Per-joint damping. Empty → use `damping_scalar`. |
-| `damping_scalar` | `float64` | `1.0` | Used when `damping` is empty. |
+| `mit_joints` | `string[]` | `[]` | The subset exposing stiffness and damping. Empty means every joint. Configuring a name absent from `joints` is rejected. |
+| `damping` | `float64` | — | Required, in `Nm/(rad/s)`. No default: this is a fault fallback, so an unstated gain would be an arbitrary one. `0.0` is a zero-torque limp. |
 
 ### `humanoid_control/StandbyController`
 
@@ -162,10 +150,9 @@ anymore — those run in-process in `RLPolicyController`.
 | Param | Type | Default | Description |
 |---|---|---|---|
 | `joints` | `string[]` | — | Required. |
-| `stale_command_policy` | `string` | `passive` | `passive` or `hold`. `passive` is a **damped hold** — zero stiffness (`kP=0`) and high damping (`kD = damping_scalar`) while holding the live joint position, exactly like DAMPING mode; applied both on entering REMOTE before the first command **and** on stale dropouts (it no longer goes fully limp). `hold` is unchanged. |
+| `stale_command_policy` | `string` | `passive` | `passive` or `hold`. `passive` is a **damped hold** — zero stiffness (`kP=0`) and high damping (`kD = damping`) while holding the live joint position, exactly like DAMPING mode; applied both on entering REMOTE before the first command **and** on stale dropouts (it no longer goes fully limp). `hold` is unchanged. |
 | `stale_command_timeout_ms` | `int` | `100` | Staleness window measured against the message's **arrival time at the subscription callback**, not against `MITCommand.header.stamp`. Publisher clock skew is irrelevant. |
-| `damping` | `float64[]` | `[]` | Per-joint `K_d` for the `passive` damped hold. Empty → use `damping_scalar`. |
-| `damping_scalar` | `float64` | `6.0` | Damping used when `damping` is empty — matches the DAMPING mode's damping. |
+| `damping` | `float64` | — | Required, in `Nm/(rad/s)`. The gain of the `passive` damped hold. Match `damping_controller`'s value so the hold feels the same as the damping mode. |
 
 The controller **rejects** any `MITCommand` whose `joint_names` doesn't match
 its claimed order, or whose array lengths don't all match `joints.size()`.

@@ -158,7 +158,7 @@ shutdown.
 ros2 control list_controllers
 # Expected after the first switch:
 #   damping_controller        humanoid_control/DampingController        active
-#   zero_torque_controller    humanoid_control/ZeroTorqueController     inactive
+#   zero_torque_controller    humanoid_control/DampingController        inactive
 #   joint_state_broadcaster   joint_state_broadcaster/...  active
 #   standby_controller_a      humanoid_control/StandbyController        inactive
 #   standby_controller_b      humanoid_control/StandbyController        inactive

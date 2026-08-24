@@ -181,7 +181,7 @@ gamepad buttons directly to `/controller_manager/switch_controller`.
 
 | Plugin | State | Source |
 |---|---|---|
-| `humanoid_control/ZeroTorqueController` | startup, STOP, safer fault fallback | `zero_torque_controller.cpp` |
+| `humanoid_control/DampingController` | startup and STOP at `damping: 0.0`, compliant fault fallback above it | `damping_controller.cpp` |
 | `humanoid_control/DampingController` | compliant fail-safe | `damping_controller.cpp` |
 | `humanoid_control/StandbyController` | interpolates `position` from the measured pose toward a YAML target pose (A/B/Y), constant `K_p`/`K_d` from t=0 (no stiffness ramp) — safe from any state | `standby_controller.cpp` |
 | `humanoid_control/RLPolicyController` | in-process ONNX inference (System 0) — every learned policy | `rl_policy_controller.cpp` |

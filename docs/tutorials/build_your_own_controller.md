@@ -197,7 +197,7 @@ Add the new source to the existing library in
 
 ```cmake
 add_library(${PROJECT_NAME} SHARED
-  src/zero_torque_controller.cpp
+  src/damping_controller.cpp
   src/damping_controller.cpp
   src/standby_controller.cpp
   src/rl_policy_controller.cpp
@@ -298,7 +298,7 @@ Then `Ctrl+C` the launch.
 
 | Controller | Distinct mechanism worth studying |
 |---|---|
-| `humanoid_control/ZeroTorqueController` | The minimal case — claims all 5 MIT interfaces, writes 0. Best baseline. |
+| `humanoid_control/DampingController` | The minimal case — claims all 5 MIT interfaces and writes a damping hold. Best baseline. |
 | `humanoid_control/DampingController` | Captures state on activate; uses a YAML per-joint or scalar fallback. |
 | `humanoid_control/StandbyController` | Interpolates its setpoint from the current measured joint positions to a target pose at constant PD (no gain ramp); publishes its own state topic. |
 | `humanoid_control/RLPolicyController` | The in-process System 0 policy: preloads a `.mcap` motion reference and runs ONNX inference inside `update()`; observation packing + action mapping, all RT-safe. |

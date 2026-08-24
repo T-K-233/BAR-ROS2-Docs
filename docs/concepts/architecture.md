@@ -84,7 +84,7 @@ Behavior per state:
 
 | State | Plugin | What it writes |
 |---|---|---|
-| **ZERO_TORQUE** | `humanoid_control/ZeroTorqueController` | 0 to all 5 cmd interfaces. Startup default, fault fallback. |
+| **ZERO_TORQUE** | `humanoid_control/DampingController` at `damping: 0.0` | 0 to all 5 cmd interfaces. Startup default, final fault fallback. |
 | **DAMPING** | `humanoid_control/DampingController` | `K=0`, `D=damping value`, `q_cmd=q_captured` — soft under gravity, resists velocity. |
 | **STANDBY** | `humanoid_control/StandbyController` | Interpolates `position` from the **current measured** joint positions toward a YAML target pose, with constant target `K_p / K_d` from t=0 (no ramp) — safe to enter from any state, including a running policy, with no jump. Still publishes `StandbyState`, but nothing gates on `is_finished`. Three spawned instances — `standby_controller_a` / `_b` / `_y` (Poses A / B / Y, `L1+A` / `L1+B` / `L1+Y`); from any of them you can start either policy. |
 | **LOCOMOTION** | `humanoid_control/RLPolicyController` | In-process ONNX inference (System 0): packs observations, replays the `.mcap` motion reference, decodes + writes commands — all in the RT `update()`. Runs every learned policy (tracking / piano / locomotion); they differ only by the loaded `.onnx` + `.mcap`. |
