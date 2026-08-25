@@ -68,7 +68,7 @@ warnings**, the actuators aren't powered — see
 
 ```bash
 pixi shell    # enter the workspace env so ros2 is on PATH
-ros2 launch humanoid_bringup_lite real.launch.py
+ros2 launch humanoid_bringup_lite lite_real.launch.py
 ```
 
 Default args: `hardware_config:=<bundled lite_hardware.yaml>
@@ -84,7 +84,7 @@ other `/dev/input/js*` devices it can see so you can override with
 controllers with `ros2 control switch_controllers` directly instead
 (see [Switch controllers manually](./switch_controllers_manually.md)).
 
-`real.launch.py` boots the **onboard-computer side** of the tethered
+`lite_real.launch.py` boots the **onboard-computer side** of the tethered
 deployment split: hardware plugins, the control-mode controllers, the
 `joy_teleop` button mapper, and the gamepad driver. Visualisers
 (`ros2 launch humanoid_bringup_lite viz.launch.py`)

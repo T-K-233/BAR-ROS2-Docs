@@ -1,7 +1,7 @@
 # Launch args
 
 Every Humanoid Control bringup follows the same vocabulary. Each robot ships **two
-parallel launches** — `real.launch.py` for silicon, `mujoco.launch.py` for
+parallel launches** — `lite_real.launch.py` for silicon, `lite_mujoco.launch.py` for
 MuJoCo physics. Operators pick the *launch file* rather than flipping a
 `use_mock_hardware` flag on a single one. The xacro still accepts
 `use_mock_hardware:=true` for direct ad-hoc visualization, but no
@@ -16,7 +16,7 @@ Launches live in two repos:
   (`pianist_bringup`), the piano prepare-and-load launch, and the USB-MIDI
   driver (both `pianist_policy`).
 
-## `humanoid_bringup_lite/launch/view_lite.launch.py`
+## `humanoid_bringup_lite/launch/lite_view.launch.py`
 
 URDF inspector — no controller_manager, no physics.
 
@@ -27,7 +27,7 @@ Implicit: forces `use_mock_hardware:=true` on the xacro so the
 `<ros2_control>` block is harmless when `robot_state_publisher` parses
 the URDF.
 
-## `humanoid_bringup_lite/launch/real.launch.py`
+## `humanoid_bringup_lite/launch/lite_real.launch.py`
 
 Real-hardware Lite bringup. Loads **two** `humanoid_devices_robstride/RobstrideSystem`
 instances, one per physical SocketCAN bus (`LiteLeftArm` claims CAN ids
@@ -48,7 +48,7 @@ tracking / piano / locomotion), R1+B activates
 `remote_policy_controller` (the System 1/2 external-command ingress —
 gravity-comp today, VLA later; see [Controllers](./controllers.md)).
 
-**Visualisers are not in this launch.** `real.launch.py` is the
+**Visualisers are not in this launch.** `lite_real.launch.py` is the
 onboard-computer entrypoint of the tethered deployment split — it
 publishes `/robot_description` and `/lite/joint_states` over DDS but
 spawns no viewers. Run `ros2 launch humanoid_bringup_lite viz.launch.py`
@@ -62,7 +62,7 @@ Implicit on the xacro: `use_mock_hardware:=false sim_mujoco:=false`.
 Host-side live visualiser. Runs on the **operator workstation** of the
 tethered deployment split (not on the onboard computer). Subscribes to
 the `/robot_description` (latched) and joint-state topic that
-`real.launch.py` is publishing on the onboard side and renders the
+`lite_real.launch.py` is publishing on the onboard side and renders the
 live pose locally — purely a DDS consumer, no hardware coupling.
 
 | Arg | Default | Effect |
@@ -77,7 +77,7 @@ upstream).
 
 ## `humanoid_bringup_lite/launch/calibrate.launch.py`
 
-Bundles `real.launch.py` with three overrides
+Bundles `lite_real.launch.py` with three overrides
 (`calibration_file:='' enable_joy_teleop:='false' enable_gamepad:='false'`)
 and adds the `calibrate_robot` observer node. The plugin runs with identity
 calibration so `/lite/joint_states` carries `direction × raw_motor_pos`,
@@ -85,8 +85,8 @@ which is the frame the homing-offset formula expects.
 
 | Arg | Default | Effect |
 |---|---|---|
-| `hardware_config` | `<bundled lite_hardware.yaml>` | Forwarded to `real.launch.py`. |
-| `output` | `$PWD/calibration.yaml` | Path the calibration observer writes on Ctrl+C. After verifying, `mv` it over `humanoid_bringup_lite/config/calibration.yaml` to make it the default for the next `real.launch.py`. |
+| `hardware_config` | `<bundled lite_hardware.yaml>` | Forwarded to `lite_real.launch.py`. |
+| `output` | `$PWD/calibration.yaml` | Path the calibration observer writes on Ctrl+C. After verifying, `mv` it over `humanoid_bringup_lite/config/calibration.yaml` to make it the default for the next `lite_real.launch.py`. |
 
 The observer reads per-joint static config (`direction`, `lower_limit`,
 `upper_limit`, `can_id`) from `/robot_description` — there's no parallel
@@ -95,7 +95,7 @@ per-joint keys as
 [`T-K-233/Lite-Lowlevel-Python`](https://github.com/T-K-233/Lite-Lowlevel-Python)'s
 JSON output, so values move between the two stacks unchanged.
 
-## `humanoid_bringup_lite/launch/mujoco.launch.py`
+## `humanoid_bringup_lite/launch/lite_mujoco.launch.py`
 
 MuJoCo Lite bringup. Loads `mujoco_ros2_control/MujocoSystem` inside the
 `mujoco_sim` process (which hosts the controller_manager as a physics
@@ -118,7 +118,7 @@ Implicit:
   `humanoid_controllers/config/humanoid_control_lite_controllers.yaml` so the real-hardware
   launch stays sim-time-free.
 
-## `humanoid_bringup_prime/launch/real.launch.py`
+## `humanoid_bringup_prime/launch/prime_real.launch.py`
 
 Stub real-hardware Prime bringup. Designed to load both
 `ethercat_driver/EthercatDriver` (eRob arms) and `humanoid_devices_sito/SitoSystem`
@@ -128,9 +128,9 @@ The Prime URDF / MJCF is **not yet imported** from CAD —
 `humanoid_bringup_prime` is a stub today and this launch will not wire
 controllers until that import lands.
 
-## `humanoid_bringup_prime/launch/mujoco.launch.py`
+## `humanoid_bringup_prime/launch/prime_mujoco.launch.py`
 
-Stub mirror of `humanoid_bringup_lite/mujoco.launch.py` for Prime, pending
+Stub mirror of `humanoid_bringup_lite/lite_mujoco.launch.py` for Prime, pending
 the Prime MJCF import.
 
 ## `humanoid_control_policy/launch/lite_policy.launch.py`
@@ -201,13 +201,13 @@ apart.
 MuJoCo bringup for the piano task. Composes the Lite robot and the
 piano MJCF into one scene file (`_runtime_lite_piano.xml`) inside
 `lite_description`'s `robots/lite_dummy/mjcf/` share dir, then delegates to
-`humanoid_bringup_lite/mujoco.launch.py` with `scene:=_runtime_lite_piano`.
+`humanoid_bringup_lite/lite_mujoco.launch.py` with `scene:=_runtime_lite_piano`.
 Also spawns the `piano_state_bridge` sim-side bridge so
 `/piano/key_state` exists on the sim path.
 
 | Arg | Default | Effect |
 |---|---|---|
-| `enable_gamepad` | `true` | Forwarded to `humanoid_bringup_lite/mujoco.launch.py`. |
+| `enable_gamepad` | `true` | Forwarded to `humanoid_bringup_lite/lite_mujoco.launch.py`. |
 | `robot_type` | `arms` | `arms`, `biped` or `biped_debug`. Selects the bring-up launch and the lite_description variant. |
 | `hardware_config` | `<humanoid_bringup_lite share>/config/lite_hardware.yaml` | Forwarded. |
 
@@ -236,10 +236,10 @@ robot involved, no tether):
 
 ```sh
 # Drag joints in RViz, no controllers.
-ros2 launch humanoid_bringup_lite view_lite.launch.py
+ros2 launch humanoid_bringup_lite lite_view.launch.py
 
 # MuJoCo physics, /clock from sim time.
-ros2 launch humanoid_bringup_lite mujoco.launch.py
+ros2 launch humanoid_bringup_lite lite_mujoco.launch.py
 
 # Lite + piano in MuJoCo (pianist_bringup composes the scene).
 ros2 launch pianist_bringup mujoco.launch.py
@@ -253,13 +253,13 @@ the real control plane, no visualisers, no policy runner):
 
 ```sh
 # Real Lite, gamepad on by default. Press R1+B to activate the remote policy.
-ros2 launch humanoid_bringup_lite real.launch.py
+ros2 launch humanoid_bringup_lite lite_real.launch.py
 
 # Same, but on a keyboardless lab box (switch controllers via ros2 control switch_controllers).
-ros2 launch humanoid_bringup_lite real.launch.py enable_gamepad:=false
+ros2 launch humanoid_bringup_lite lite_real.launch.py enable_gamepad:=false
 
 # Gamepad enumerated as js1 instead of js0 (multiple controllers plugged in).
-ros2 launch humanoid_bringup_lite real.launch.py joy_dev:=/dev/input/js1
+ros2 launch humanoid_bringup_lite lite_real.launch.py joy_dev:=/dev/input/js1
 ```
 
 **Robot onboard computer — prepare + load a policy** (the in-process

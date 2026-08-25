@@ -35,7 +35,7 @@ The simplest possible launch: `robot_state_publisher` + a
 the kinematic chain.
 
 ```sh
-ros2 launch humanoid_bringup_lite view_lite.launch.py
+ros2 launch humanoid_bringup_lite lite_view.launch.py
 ```
 
 What you'll see:
@@ -70,7 +70,7 @@ below. Nothing on the CAN bus — the
 the Robstride firmware computes on silicon.
 
 ```sh
-ros2 launch humanoid_bringup_lite mujoco.launch.py
+ros2 launch humanoid_bringup_lite lite_mujoco.launch.py
 ```
 
 A **MuJoCo viewer window** opens with the Lite humanoid at zero pose.
@@ -93,7 +93,7 @@ Expected output (give or take):
 
 ```
 joint_state_broadcaster   joint_state_broadcaster/JointStateBroadcaster   active
-zero_torque_controller    humanoid_control/ZeroTorqueController                        active
+zero_torque_controller    humanoid_control/DampingController                           active
 damping_controller        humanoid_control/DampingController                           inactive
 standby_controller_a      humanoid_control/StandbyController                           inactive
 standby_controller_b      humanoid_control/StandbyController                           inactive
@@ -186,7 +186,7 @@ Verify:
 ```sh
 ros2 control list_controllers
 # damping_controller        humanoid_control/DampingController                           active
-# zero_torque_controller    humanoid_control/ZeroTorqueController                        inactive
+# zero_torque_controller    humanoid_control/DampingController                           inactive
 ```
 
 :::tip[Why DAMPING is the "compliant fail-safe"]

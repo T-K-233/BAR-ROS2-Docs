@@ -73,7 +73,7 @@ additionally has a **stale-command policy**: if the external source's
 subscription callback — not against `MITCommand.header.stamp` — so
 publisher clock skew is irrelevant), the controller writes a fallback
 pattern rather than re-using the last command. Default `passive` → a
-**damped hold**: zero stiffness, high damping (`kD = damping_scalar`,
+**damped hold**: zero stiffness, high damping (`kD = damping`,
 default 6.0, matching DAMPING mode), holding the live joint position — the
 arms stay damped, not limp. (The same damped hold also applies when REMOTE
 is first entered, before any `MITCommand` has arrived.) Alternative `hold`
@@ -100,7 +100,7 @@ RLPolicyController     → damping_controller
 RemotePolicyController → damping_controller
 StandbyController      → damping_controller
 DampingController      → zero_torque_controller
-ZeroTorqueController   → (no fallback — final fall-back)
+zero_torque_controller → (no fallback — final fall-back)
 ```
 
 `zero_torque_controller` is the unique safer-than-damping option,

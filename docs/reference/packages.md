@@ -81,7 +81,7 @@ URDF / xacro / meshes / `<ros2_control>` blocks. **Lite's description is no long
 in `Humanoid Control`** — it lives in the external, CAD-generated
 [`lite_description`](https://github.com/Berkeley-Humanoids/Lite-Description) repo
 (bar deploys the `lite_dummy` variant), pulled in via `bar.repos`. It is
-**asset-only**: the RViz inspector (`view_lite.launch.py` + `view_lite.rviz`) now
+**asset-only**: the RViz inspector (`lite_view.launch.py` + `view_lite.rviz`) now
 lives in `humanoid_bringup_lite`. Prime's description likewise lives in the external [`prime_description`](https://github.com/T-K-233/Prime-Description) repo (bar deploys the `prime_dummy` variant, which also carries the hybrid eRob+Sito `<ros2_control>`).
 
 Layout (Lite shown, inside the `lite_description` repo):
@@ -181,7 +181,7 @@ gamepad buttons directly to `/controller_manager/switch_controller`.
 
 | Plugin | State | Source |
 |---|---|---|
-| `humanoid_control/ZeroTorqueController` | startup, STOP, safer fault fallback | `zero_torque_controller.cpp` |
+| `humanoid_control/DampingController` | startup and STOP at `damping: 0.0`, compliant fault fallback above it | `damping_controller.cpp` |
 | `humanoid_control/DampingController` | compliant fail-safe | `damping_controller.cpp` |
 | `humanoid_control/StandbyController` | interpolates `position` from the measured pose toward a YAML target pose (A/B/Y), constant `K_p`/`K_d` from t=0 (no stiffness ramp) — safe from any state | `standby_controller.cpp` |
 | `humanoid_control/RLPolicyController` | in-process ONNX inference (System 0) — every learned policy | `rl_policy_controller.cpp` |
@@ -238,7 +238,7 @@ cloned side-by-side under `humanoid_control_ws/src/`:
 | Package | Build type | What it ships |
 |---|---|---|
 | `pianist_assets` | ament_cmake | Piano MJCF (`piano.xml`) installed under `<share>/pianist_assets/mjcf/`. |
-| `pianist_bringup` | ament_cmake | `mujoco.launch.py` — composes a `_runtime_lite_piano.xml` scene next to `lite.xml` (so MuJoCo's `meshdir="../meshes/"` resolves), then delegates to `humanoid_bringup_lite/mujoco.launch.py` with `scene:=_runtime_lite_piano`. Also spawns `piano_state_bridge` so `/piano/key_state` exists on the sim path. |
+| `pianist_bringup` | ament_cmake | `lite_mujoco.launch.py` — composes a `_runtime_lite_piano.xml` scene next to `lite.xml` (so MuJoCo's `meshdir="../meshes/"` resolves), then delegates to `humanoid_bringup_lite/lite_mujoco.launch.py` with `scene:=_runtime_lite_piano`. Also spawns `piano_state_bridge` so `/piano/key_state` exists on the sim path. |
 | `pianist_msgs` | ament_cmake | Piano-task messages. No longer carries the key-state stream (that moved to a generic `std_msgs/Float32MultiArray` on `/piano/key_state`). |
 | `pianist_policy` | ament_python | `prepare` console script + `piano_policy.launch.py` (runs the piano `prepare`, then loads the in-process `rl_policy_controller` inactive — the piano task is selected by the ONNX `task_type='piano'`). Also ships the live key-state nodes `piano_state_bridge` (sim) and `midi_keyboard_driver` (real USB-MIDI), both publishing `std_msgs/Float32MultiArray` on `/piano/key_state`, with a matching `midi_keyboard_driver.launch.py`. |
 
@@ -250,7 +250,7 @@ and the song reference is baked into the `.mcap` the controller loads.
 New task families follow the same pattern: depend on `humanoid_control_msgs` +
 `humanoid_control_policy`, ship a `<task>_policy prepare` tool that emits the overlay
 + `.mcap`, and a bringup launch composing onto
-`humanoid_bringup_lite/mujoco.launch.py` or `…/real.launch.py`.
+`humanoid_bringup_lite/lite_mujoco.launch.py` or `…/lite_real.launch.py`.
 
 ### `humanoid_bringup_lite` / `humanoid_bringup_prime`
 
@@ -263,8 +263,8 @@ for which side runs which):
 
 | Launch | Deployment side | Hardware path | Selected xacro args |
 |---|---|---|---|
-| `real.launch.py` | Robot onboard computer | `humanoid_devices_robstride` / `humanoid_devices_sito` over SocketCAN (+ EtherCAT for Prime) | `use_mock_hardware:=false sim_mujoco:=false` |
-| `mujoco.launch.py` | Single-machine sim/dev | `mujoco_ros2_control/MujocoSystem` inside `mujoco_sim` | `sim_mujoco:=true` |
+| `lite_real.launch.py` | Robot onboard computer | `humanoid_devices_robstride` / `humanoid_devices_sito` over SocketCAN (+ EtherCAT for Prime) | `use_mock_hardware:=false sim_mujoco:=false` |
+| `lite_mujoco.launch.py` | Single-machine sim/dev | `mujoco_ros2_control/MujocoSystem` inside `mujoco_sim` | `sim_mujoco:=true` |
 | `calibrate.launch.py` | Single-machine (robot benchtop) | `humanoid_devices_robstride` with identity calibration + `calibrate_robot` observer | `use_mock_hardware:=false sim_mujoco:=false` |
 | `viz.launch.py` | Operator workstation (host) | DDS-consumer only; no controller_manager, no hardware | n/a — only subscribes |
 

@@ -33,10 +33,10 @@ for the split rationale. Launches come from two repos:
 
 ```bash
 # Drag joints in RViz — no controllers, no physics
-ros2 launch humanoid_bringup_lite view_lite.launch.py
+ros2 launch humanoid_bringup_lite lite_view.launch.py
 
 # MuJoCo sim — full controller stack, /clock from sim time
-ros2 launch humanoid_bringup_lite mujoco.launch.py
+ros2 launch humanoid_bringup_lite lite_mujoco.launch.py
 
 # Lite + piano in MuJoCo (pianist_bringup composes the scene, spawns piano_state_bridge)
 ros2 launch pianist_bringup mujoco.launch.py
@@ -49,19 +49,19 @@ ros2 launch humanoid_bringup_lite calibrate.launch.py
 
 ```bash
 # Real Lite — both buses, two ros2_control blocks, gamepad + joy_teleop
-ros2 launch humanoid_bringup_lite real.launch.py
+ros2 launch humanoid_bringup_lite lite_real.launch.py
 
 # Real Lite, no gamepad attached (switch controllers via ros2 control switch_controllers)
-ros2 launch humanoid_bringup_lite real.launch.py enable_gamepad:=false
+ros2 launch humanoid_bringup_lite lite_real.launch.py enable_gamepad:=false
 
 # Gamepad enumerated as js1 (multiple controllers plugged into the Jetson)
-ros2 launch humanoid_bringup_lite real.launch.py joy_dev:=/dev/input/js1
+ros2 launch humanoid_bringup_lite lite_real.launch.py joy_dev:=/dev/input/js1
 
 # Real Lite, no joy button switching (raw debug / calibration)
-ros2 launch humanoid_bringup_lite real.launch.py enable_joy_teleop:=false
+ros2 launch humanoid_bringup_lite lite_real.launch.py enable_joy_teleop:=false
 ```
 
-`real.launch.py` boots the real-time control plane only — visualisers
+`lite_real.launch.py` boots the real-time control plane only — visualisers
 live on the operator workstation; the in-process policy is prepared and
 loaded on the robot below.
 

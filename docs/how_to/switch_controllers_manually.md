@@ -37,7 +37,7 @@ You don't need to disable anything — CLI switches work whether or not
 entirely (no button bindings on `/joy`), pass `enable_joy_teleop:=false`:
 
 ```bash
-ros2 launch humanoid_bringup_lite real.launch.py enable_joy_teleop:=false
+ros2 launch humanoid_bringup_lite lite_real.launch.py enable_joy_teleop:=false
 ```
 
 Either way `zero_torque_controller` comes up active (the spawner sets it
@@ -130,7 +130,7 @@ controller is **not** fed by any learned policy; learned policies run
 in-process in `rl_policy_controller`.
 
 `rl_policy_controller` (`humanoid_control/RLPolicyController`) is **not** spawned by
-`real.launch.py` — it is loaded *inactive* by the prepare→spawn
+`lite_real.launch.py` — it is loaded *inactive* by the prepare→spawn
 [policy launch](./promote_python_to_cpp.md)
 (`ros2 launch humanoid_control_policy lite_policy.launch.py checkpoint_file:=<path>`),
 which runs `prepare` to resolve the ONNX + `.mcap` motion bag and emit
@@ -158,7 +158,7 @@ shutdown.
 ros2 control list_controllers
 # Expected after the first switch:
 #   damping_controller        humanoid_control/DampingController        active
-#   zero_torque_controller    humanoid_control/ZeroTorqueController     inactive
+#   zero_torque_controller    humanoid_control/DampingController        inactive
 #   joint_state_broadcaster   joint_state_broadcaster/...  active
 #   standby_controller_a      humanoid_control/StandbyController        inactive
 #   standby_controller_b      humanoid_control/StandbyController        inactive

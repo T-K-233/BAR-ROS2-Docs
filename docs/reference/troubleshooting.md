@@ -424,7 +424,7 @@ Prime this is the DC-sync / comms family.
 `update_rate`. SYNC0 is driven from the CM loop, so a mismatch means the
 distributed clock never locks.
 
-**Fix**: `real.launch.py` derives `control_frequency` from the controllers YAML
+**Fix**: `lite_real.launch.py` derives `control_frequency` from the controllers YAML
 `update_rate` so they cannot diverge; if you set it by hand, keep them equal
 (50 Hz). Read the live error with `ethercat upload -pN 0x603F 0`.
 

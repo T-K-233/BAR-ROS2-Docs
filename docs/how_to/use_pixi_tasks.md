@@ -112,8 +112,8 @@ Lite):
 
 | Task | Wraps |
 |---|---|
-| `pixi run sim` | `ros2 launch humanoid_bringup_lite mujoco.launch.py` |
-| `pixi run real` | `ros2 launch humanoid_bringup_lite real.launch.py` |
+| `pixi run sim` | `ros2 launch humanoid_bringup_lite lite_mujoco.launch.py` |
+| `pixi run real` | `ros2 launch humanoid_bringup_lite lite_real.launch.py` |
 | `pixi run sim-prime` / `real-prime` | the `humanoid_bringup_prime` equivalents |
 | `pixi run sim-piano` | `ros2 launch pianist_bringup mujoco.launch.py` |
 | `pixi run policy` | `ros2 launch humanoid_control_policy lite_policy.launch.py` |
@@ -152,7 +152,7 @@ Frequently-used diagnostics get free kebab-case task names. Each one
 Rarely-used tools deliberately get **no task** — their canonical
 `ros2 run` / `ros2 launch` forms are documented instead (e.g.
 `robstride_probe_report`, `mit_slider_gui`, the standalone
-`viser_viz` / `rerun_viz` executables, `view_lite.launch.py`). See
+`viser_viz` / `rerun_viz` executables, `lite_view.launch.py`). See
 [Reference → Diagnostics and utility commands](../reference/cli_tools.md).
 
 ## Forwarding arguments

@@ -30,7 +30,7 @@ actuator angles.
 :::note[`hardware_config` is a *launch* arg, not a xacro arg]
 The xacro takes the two bus names directly (`can_interface_left` /
 `can_interface_right`). `hardware_config` is a **launch** argument
-([Reference → Launch args](./launch_args.md)): `real.launch.py` reads the
+([Reference → Launch args](./launch_args.md)): `lite_real.launch.py` reads the
 `buses:` section of that YAML and passes the resulting ifnames into the
 two xacro args above. You only set `hardware_config` when launching, not
 when driving xacro by hand.

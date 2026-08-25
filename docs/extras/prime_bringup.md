@@ -18,8 +18,8 @@ to the single-bus / diagnostic modes while bringing a fresh robot up.
 ## How Prime differs from Lite
 
 Lite is homogeneous (Robstride on two SocketCAN buses). Prime is **hybrid**:
-the expansion of `prime_dummy.urdf.xacro` with `use_fake_hardware:=false
-use_sim:=false` emits **two concurrent `<ros2_control>` blocks**, and
+the expansion of `prime_dummy.urdf.xacro` with `use_mock_hardware:=false
+sim_mujoco:=false` emits **two concurrent `<ros2_control>` blocks**, and
 `controller_manager` runs them together, exposing one flat **14-joint** list
 to the controllers (the waist is dropped in this version):
 
@@ -69,7 +69,7 @@ So each arm is 5 eRob (the three shoulder DOF, elbow, and wrist yaw) + 2 Sito
   by the launch — `ethercat_driver` only connects to it (via `master_id`, `0`
   by default). See [Step 1](#step-1--start-and-verify-the-ethercat-master).
 - **The Sito CAN bus is up.** `can2` at the 1 Mbit Robstride/Sito bitrate.
-- **eRob software calibration is present.** `real.launch.py` folds
+- **eRob software calibration is present.** `prime_real.launch.py` folds
   `prime_calibration.yaml` (per-joint `direction` + `homing_offset`) into each
   eRob's generated slave config at launch — no drive-NVM writes. Generate it
   with [Calibrate the Prime arms](../how_to/calibrate_prime_erob.md).
@@ -102,11 +102,11 @@ sudo ip link set can2 up type can bitrate 1000000
 ## Step 3 — Launch the bringup
 
 ```bash
-ros2 launch humanoid_bringup_prime real.launch.py
+ros2 launch humanoid_bringup_prime prime_real.launch.py
 ```
 
 That defaults to `backends:=all` (both buses) and bakes in
-`use_fake_hardware:=false use_sim:=false`. Useful arguments:
+`use_mock_hardware:=false sim_mujoco:=false`. Useful arguments:
 
 | Arg | Default | Purpose |
 |---|---|---|
@@ -115,7 +115,7 @@ That defaults to `backends:=all` (both buses) and bakes in
 | `enable_erob_impedance` | `true` | Spawn `erob_impedance_manager` (eRob loop gains per active mode). Pass `false` to isolate startup races or fall back to factory-gain (stiff) eRob. |
 | `enable_gamepad` | `true` | Spawn `joy_node`. Pass `enable_gamepad:=false` for headless / CI bringups. |
 | `calibration_file` | bundled `prime_calibration.yaml` | Per-joint eRob software calibration, folded at launch. |
-| `hardware_config` | bundled `prime_hardware.yaml` | `buses:` + `joints.all_joints`. |
+| `hardware_config` | bundled `prime_hardware.yaml` | `buses:` + the `erob:` drive properties. |
 
 :::note[Gamepad buttons (Prime)]
 `joy_teleop` maps each button directly to a `controller_manager` switch —
@@ -135,7 +135,7 @@ calls.
 The eRob distributed-clock SYNC0 cycle (`control_frequency`) **must** equal the
 `controller_manager` `update_rate` (50 Hz). `ethercat_driver` sends PDOs and
 syncs the DC clock from the CM `update()` loop, not a dedicated thread, so a
-mismatch makes the clock never lock → CiA402 **Fault 4616**. `real.launch.py`
+mismatch makes the clock never lock → CiA402 **Fault 4616**. `prime_real.launch.py`
 reads `update_rate` from the same controllers YAML the CM loads and passes it as
 `control_frequency`, so they cannot diverge — do not override one by hand.
 :::
@@ -170,8 +170,8 @@ When one bus misbehaves, bring the other up on its own. These spawn only
 14-joint list, which cannot fully activate with a bus absent):
 
 ```bash
-ros2 launch humanoid_bringup_prime real.launch.py backends:=ec    # eRob/EtherCAT only
-ros2 launch humanoid_bringup_prime real.launch.py backends:=can   # Sito/CAN only
+ros2 launch humanoid_bringup_prime prime_real.launch.py backends:=ec    # eRob/EtherCAT only
+ros2 launch humanoid_bringup_prime prime_real.launch.py backends:=can   # Sito/CAN only
 ```
 
 `backends:=can` is also what the Sito calibration sweep uses, so the eRob's

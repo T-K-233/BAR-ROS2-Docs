@@ -49,7 +49,7 @@ The point of the surface is that a single controller can address
 | `q_cmd, q̇_cmd, K_p, K_d, τ_ff` | computed-torque control | inverse-dynamics + low-gain PD |
 | `K_p=0, K_d>0` | velocity damping only | compliant fail-safe (our `DampingController`) |
 | `K_p=0, K_d=0, τ_ff>0` | pure torque control | what a torque-based RL policy commands |
-| `K_p=0, K_d=0, τ_ff=0` | zero torque | "alive but inert" (`ZeroTorqueController`) |
+| `K_p=0, K_d=0, τ_ff=0` | zero torque | "alive but inert" (`zero_torque_controller`, a `DampingController` at `damping: 0.0`) |
 
 Controllers claim **whichever subset they need**; the others stay at
 0 by default and contribute nothing. The actuator firmware doesn't

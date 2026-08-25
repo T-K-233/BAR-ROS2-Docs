@@ -84,7 +84,7 @@ Behavior per state:
 
 | State | Plugin | What it writes |
 |---|---|---|
-| **ZERO_TORQUE** | `humanoid_control/ZeroTorqueController` | 0 to all 5 cmd interfaces. Startup default, fault fallback. |
+| **ZERO_TORQUE** | `humanoid_control/DampingController` at `damping: 0.0` | 0 to all 5 cmd interfaces. Startup default, final fault fallback. |
 | **DAMPING** | `humanoid_control/DampingController` | `K=0`, `D=damping value`, `q_cmd=q_captured` — soft under gravity, resists velocity. |
 | **STANDBY** | `humanoid_control/StandbyController` | Interpolates `position` from the **current measured** joint positions toward a YAML target pose, with constant target `K_p / K_d` from t=0 (no ramp) — safe to enter from any state, including a running policy, with no jump. Still publishes `StandbyState`, but nothing gates on `is_finished`. Three spawned instances — `standby_controller_a` / `_b` / `_y` (Poses A / B / Y, `L1+A` / `L1+B` / `L1+Y`); from any of them you can start either policy. |
 | **LOCOMOTION** | `humanoid_control/RLPolicyController` | In-process ONNX inference (System 0): packs observations, replays the `.mcap` motion reference, decodes + writes commands — all in the RT `update()`. Runs every learned policy (tracking / piano / locomotion); they differ only by the loaded `.onnx` + `.mcap`. |
@@ -265,7 +265,7 @@ The shipping configuration is a **two-machine tethered split**. The
 same colcon workspace is installed (and built from the same pixi lock
 file) on both machines; each launch boots only the subset of nodes
 that belongs on its side. Single-machine sim/dev paths
-(`humanoid_bringup_lite/mujoco.launch.py`, `humanoid_bringup_lite/view_lite.launch.py`,
+(`humanoid_bringup_lite/lite_mujoco.launch.py`, `humanoid_bringup_lite/lite_view.launch.py`,
 `humanoid_bringup_lite/calibrate.launch.py`) are unaffected — they
 collapse both sides into one process tree.
 
@@ -275,7 +275,7 @@ ships the piano-task-specific launches.
 
 | Side | Machine | Launch | What lives here |
 |---|---|---|---|
-| **Robot** | Onboard computer (RT kernel, wired tether) | `humanoid_bringup_lite/launch/real.launch.py` (Humanoid Control) | `ros2_control_node`, `humanoid_devices_robstride` / `humanoid_devices_sito` hardware plugins, `joint_state_broadcaster`, the seven mode controllers (`zero_torque` / `damping` / `standby_a` / `standby_b` / `standby_y` / `rl_policy` / `remote_policy`), `joy_node` + `joy_teleop`, `robot_state_publisher`, IMU driver |
+| **Robot** | Onboard computer (RT kernel, wired tether) | `humanoid_bringup_lite/launch/lite_real.launch.py` (Humanoid Control) | `ros2_control_node`, `humanoid_devices_robstride` / `humanoid_devices_sito` hardware plugins, `joint_state_broadcaster`, the seven mode controllers (`zero_torque` / `damping` / `standby_a` / `standby_b` / `standby_y` / `rl_policy` / `remote_policy`), `joy_node` + `joy_teleop`, `robot_state_publisher`, IMU driver |
 | **Host** | Operator workstation | `humanoid_bringup_lite/launch/viz.launch.py` (Humanoid Control) | `viser_viz` *or* `rerun_viz` (selected by `viewer:=`) |
 | **Robot** | Onboard computer | `humanoid_control_policy/launch/lite_policy.launch.py` (Humanoid Control) / `pianist_policy/launch/piano_policy.launch.py` (pianist_ros2) | Runs `prepare` (resolve ONNX, convert motion → `.mcap` + overlay) then loads `rl_policy_controller` into the local CM. Inference is in-process, so the `.onnx` / `.mcap` artifacts **and** the W&B / HF Hub / `onnxruntime` *prepare-time* deps live here. The RT path itself pulls none of them. |
 | **Robot** | Onboard computer | `pianist_policy/launch/midi_keyboard_driver.launch.py` (pianist_ros2) | USB-MIDI keyboard driver → `/piano/key_state` (`std_msgs/Float32MultiArray`); feeds the on-robot controller's `key_pressed` extern term locally (loopback, does **not** cross the tether). |

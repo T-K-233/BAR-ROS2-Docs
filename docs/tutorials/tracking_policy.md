@@ -75,7 +75,7 @@ any of this into YAML.
 The same launch as the previous tutorial, no gamepad needed:
 
 ```bash
-ros2 launch humanoid_bringup_lite mujoco.launch.py
+ros2 launch humanoid_bringup_lite lite_mujoco.launch.py
 ```
 
 Wait for `zero_torque_controller` to come active.

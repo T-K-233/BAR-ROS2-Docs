@@ -32,7 +32,7 @@ task interface itself.
 | `hc viz` | `pixi run viz` | `ros2 launch humanoid_bringup_lite viz.launch.py` (`viewer:=viser` default, `viewer:=rerun`) |
 | `hc viz viser` | — | `ros2 run humanoid_bringup_lite viser_viz` |
 | `hc viz rerun` | — | `ros2 run humanoid_bringup_lite rerun_viz` |
-| `hc viz urdf` | — | `ros2 launch humanoid_bringup_lite view_lite.launch.py` |
+| `hc viz urdf` | — | `ros2 launch humanoid_bringup_lite lite_view.launch.py` |
 | `hc calibrate` | `pixi run calibrate` | `ros2 launch humanoid_bringup_lite calibrate.launch.py` |
 
 Tasks forward trailing arguments verbatim
@@ -199,8 +199,8 @@ ordering. Default Lite-arm button map:
 
 `BACK` selects `zero_torque_controller` — it no longer shuts the process
 down; CAN Disable still happens on `Ctrl+C` via the hardware
-`on_deactivate`. Normally launched by `real.launch.py` /
-`mujoco.launch.py` (when `enable_joy_teleop:=true`, the default). Without
+`on_deactivate`. Normally launched by `lite_real.launch.py` /
+`lite_mujoco.launch.py` (when `enable_joy_teleop:=true`, the default). Without
 a gamepad, switch controllers directly with
 `ros2 control switch_controllers --activate <name> --deactivate <name>`.
 
@@ -222,7 +222,7 @@ ros2 run humanoid_bringup_lite calibrate_robot \
 Normally launched by `calibrate.launch.py` (which sets `--output`
 from a launch arg and brings up the rest of the stack) — that launch
 is what the `pixi run calibrate` task wraps. Standalone
-invocation is useful if you already have `real.launch.py` running
+invocation is useful if you already have `lite_real.launch.py` running
 with `calibration_file:=''`.
 
 Used in: [How-to → Calibrate the zero pose](../how_to/calibrate_zero_pose.md).
