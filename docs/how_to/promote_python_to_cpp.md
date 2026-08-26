@@ -108,7 +108,6 @@ clear:
 ```bash
 ros2 control switch_controllers \
     --activate   rl_policy_controller \
-    --deactivate zero_torque_controller
 ```
 
 (Deactivate whichever controller is currently active.) On the gamepad

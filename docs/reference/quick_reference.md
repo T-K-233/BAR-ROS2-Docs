@@ -55,7 +55,7 @@ ros2 launch humanoid_bringup_lite lite_real.launch.py
 ros2 launch humanoid_bringup_lite lite_real.launch.py enable_gamepad:=false
 
 # Gamepad enumerated as js1 (multiple controllers plugged into the Jetson)
-ros2 launch humanoid_bringup_lite lite_real.launch.py joy_dev:=/dev/input/js1
+ros2 launch humanoid_bringup_lite lite_real.launch.py joy_device_id:=1
 
 # Real Lite, no joy button switching (raw debug / calibration)
 ros2 launch humanoid_bringup_lite lite_real.launch.py enable_joy_teleop:=false
@@ -117,11 +117,11 @@ These are the workspace utility tasks — one-line wrappers over the
 
 ```bash
 # Scan an ID range; read-only, no Enable
-pixi run scan-bus --iface can0 --scan-to 32
-pixi run scan-bus --iface can1 --scan-to 32
+pixi run scan-bus --channel can0 --scan-to 32
+pixi run scan-bus --channel can1 --scan-to 32
 
 # One-shot GetDeviceId / OperationStatus probe
-pixi run ping-bus --iface can0 --id 11
+pixi run ping-bus --channel can0 --id 11
 
 # Per-joint slider window (forward_command_controller frontend; no task)
 ros2 run humanoid_devices_robstride mit_slider_gui
@@ -151,11 +151,12 @@ and no ordering.
 | `L1 + Y` | `standby_controller_y` |
 | `R1 + A` | `rl_policy_controller` (locomotion) |
 | `R1 + B` | `remote_policy_controller` |
-| `BACK` | `zero_torque_controller` (STOP) |
+| `BACK` | *nothing* (STOP — deactivates every mode) |
 
-`BACK` selects `zero_torque_controller` — it does **not** shut the process
-down; CAN Disable still happens on `Ctrl+C` via the hardware
-`on_deactivate`. Pose and policy are independent, and every transition is
+`BACK` activates nothing: it deactivates every mode, and the hardware then
+holds each joint at zero stiffness, zero feedforward torque, and its
+`safe_damping`. It does **not** shut the process down; CAN Disable still
+happens on `Ctrl+C` via the hardware `on_deactivate`. Pose and policy are independent, and every transition is
 allowed from every state — from any standby pose (or any other state)
 `R1+A` → locomotion or `R1+B` → REMOTE, and you can switch directly
 between poses. See
@@ -167,10 +168,8 @@ equivalent `ros2 control` calls.
 These are interactive `ros2 control` calls:
 
 ```bash
-# ZERO_TORQUE → DAMPING
-ros2 control switch_controllers \
-    --deactivate zero_torque_controller \
-    --activate   damping_controller
+# STOP (nothing active) → DAMPING
+ros2 control switch_controllers --activate damping_controller
 
 # any state → STANDBY Pose A (interpolates from the measured pose toward the
 # Pose A target, constant PD from t=0, no stiffness ramp — safe from any state;
@@ -179,14 +178,13 @@ ros2 control switch_controllers \
     --deactivate damping_controller \
     --activate   standby_controller_a
 
-# Back to safe
+# Back to safe (STOP): deactivate only, activate nothing
 ros2 control switch_controllers \
-    --deactivate <whatever>_controller \
-    --activate   zero_torque_controller
+    --deactivate <whatever>_controller
 ```
 
-Always end a session with `zero_torque_controller` active before
-`Ctrl+C`-ing the launch.
+There is nothing to activate for STOP, and nothing that has to succeed: with
+no mode claiming the joints, the hardware's safe state is what runs.
 
 ## Topics you actually echo
 
@@ -218,7 +216,7 @@ ros2 topic echo --once /lite/joint_states
 ros2 topic echo --once /safety_status
 
 # Switch controllers without a gamepad (any transition, from any state)
-ros2 control switch_controllers --activate damping_controller --deactivate zero_torque_controller
+ros2 control switch_controllers --activate damping_controller
 ros2 control switch_controllers --activate standby_controller_a --deactivate damping_controller
 
 # Fake a System 1/2 MITCommand publish (when remote_policy_controller is active in MuJoCo)
@@ -241,7 +239,7 @@ current one):
 | STANDBY Y | `ros2 control switch_controllers --activate standby_controller_y --deactivate <current>` |
 | LOCOMOTION | `ros2 control switch_controllers --activate rl_policy_controller --deactivate <current>` |
 | REMOTE | `ros2 control switch_controllers --activate remote_policy_controller --deactivate <current>` |
-| STOP | `ros2 control switch_controllers --activate zero_torque_controller --deactivate <current>` |
+| STOP | `ros2 control switch_controllers --deactivate <current>` (activates nothing) |
 
 The gamepad does exactly this via `joy_teleop`.
 
@@ -288,7 +286,7 @@ Five command interfaces per joint: `position`, `velocity`, `effort`,
 |---|---|
 | `ENOBUFS` / `Network is down` warnings | Motor power off → frames don't ACK → qdisc fills. Power the motors. |
 | `/lite/joint_states` shows exactly 0.0 for every joint | Motors un-Enabled (no power, or Enable frame dropped). Check `/safety_status flags`. |
-| Launch dies with "`joy_dev:=/dev/input/jsN` does not exist" | `enable_gamepad:=true` is the default and the bringup hard-fails when the resolved joystick path is missing. Plug a gamepad in, pass `joy_dev:=<actual path>` (the error message lists any other `/dev/input/js*` it found), or pass `enable_gamepad:=false`. |
+| Launch dies with "`joy_device_id:=N` is not connected" | `enable_gamepad:=true` is the default and the bring-up stops when that SDL2 index is absent. Plug a gamepad in, pass the index the error message lists, or pass `enable_gamepad:=false`. |
 | A gamepad button doesn't switch the controller | Check `joy_teleop` is running and the target controller is loaded; read the active one with `ros2 control list_controllers`. |
 | `ros2 topic echo /safety_status` reports `flags ≠ 0` | Check [Concepts → Safety pipeline](../concepts/safety_pipeline.md) for the bit definitions. |
 

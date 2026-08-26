@@ -127,7 +127,7 @@ The repository layout is a deliberate split:
   strict `ros2/ros2` one-repo-per-package convention. The piano task is
   the sibling `pianist_ros2` repo under `src/pianist_ros2/`.
 - **Third-party dependencies are pinned, not vendored.**
-  `src/humanoid_control/bar.repos` lists `ethercat_driver_ros2` and the three
+  `src/humanoid_control/humanoid_control.repos` lists `ethercat_driver_ros2` and the three
   `mujoco_*` packages; `vcs import` (`pixi run setup`) pulls them into
   `src/`. Pin to commit SHAs for releases.
 
@@ -148,7 +148,7 @@ pixi run build      # colcon build
 ```
 
 `pixi.lock` pins the environment; the `Humanoid Control` / `pianist_ros2`
-checkouts pin the first-party tree; `bar.repos` pins the third-party tree.
+checkouts pin the first-party tree; `humanoid_control.repos` pins the third-party tree.
 Together they reproduce the workspace bit-for-bit.
 
 ## See also

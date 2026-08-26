@@ -19,8 +19,8 @@ The description artifacts are **generated**, so you edit generation inputs, neve
 | `Lite-Description` `robots/lite_dummy/cad/config.json` | Onshape document and export options: the kinematic chain comes from CAD |
 | `Lite-Description` `robots/lite_dummy/cad/joint_properties.json` | Sim tuning per joint: `armature`, `friction_loss`, `effort_limit` |
 | `Lite-Description` `robots/lite_dummy/cad/ros2_control.json` | Hardware map: which CAN bus, CAN id, model, direction, torque and current caps |
-| `humanoid_controllers/config/humanoid_control_lite_controllers.yaml` | `joints:` list for every controller, plus per-joint K/D and standby pose entries |
-| `humanoid_bringup_lite/config/calibration.yaml` | `homing_offset` for the new joint (created via [Calibrate the zero pose](./calibrate_zero_pose.md)) |
+| `humanoid_bringup_lite/config/lite_controllers.yaml` | `joints:` list for every controller, plus per-joint K/D and standby pose entries |
+| `config/calibration.yaml` (deployment workspace) | `homing_offset` for the new joint (created via [Calibrate the zero pose](./calibrate_zero_pose.md)) |
 
 :::warning
 Do not hand-edit `robots/<variant>/xacro/`, `urdf/` or `mjcf/`. Every one of those
@@ -93,7 +93,7 @@ xacro $(ros2 pkg prefix lite_description)/share/lite_description/robots/lite_dum
 
 Open the file and confirm the new joints appear with the right `<param>` children.
 
-## Step 3 — Update `humanoid_control_lite_controllers.yaml`
+## Step 3 — Update `lite_controllers.yaml`
 
 For every controller's `joints:` list, append the new joint name(s).
 **Order matters** — this is the canonical joint order
@@ -102,7 +102,7 @@ backward compatibility, append at the end so existing policy
 checkpoints still work:
 
 ```yaml
-zero_torque_controller:
+damping_controller:
   ros__parameters:
     joints:
       - left_shoulder_pitch
@@ -146,7 +146,7 @@ ros2 launch humanoid_bringup_lite calibrate.launch.py
 Hand-sweep the new joint(s) through their full range. Old joints
 sit stationary — the tool's sweep threshold will preserve their
 existing `homing_offset` entries. Move the resulting
-`./calibration.yaml` over `humanoid_bringup_lite/config/calibration.yaml`.
+`./calibration.yaml` over the deployment workspace's `config/calibration.yaml`.
 
 ## Step 5 — Verify
 

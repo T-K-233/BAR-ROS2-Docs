@@ -40,10 +40,10 @@ entirely (no button bindings on `/joy`), pass `enable_joy_teleop:=false`:
 ros2 launch humanoid_bringup_lite lite_real.launch.py enable_joy_teleop:=false
 ```
 
-Either way `zero_torque_controller` comes up active (the spawner sets it
-active) and the other controllers load inactive. Nothing watches
-`/safety_status` to switch modes for you — the operator drives every
-switch.
+Either way no mode controller comes up active: they all load inactive, and the
+hardware holds each joint's safe state until one is activated. Only
+`joint_state_broadcaster` and `safety_monitor` boot active. Nothing watches
+`/safety_status` to switch modes for you — the operator drives every switch.
 
 ## Common switches
 
@@ -51,7 +51,7 @@ Switching is **flat**: any controller can be activated from any state,
 and each switch just deactivates the current mode and activates the new
 one (`--strict` optional; the gamepad uses best-effort). The examples
 below are ordered for a typical bring-up, but you can go directly
-between any two — e.g. `zero_torque_controller` straight to
+between any two — e.g. straight from nothing active to
 `rl_policy_controller`.
 
 The commands below are interactive `ros2 control` / `ros2 topic`
@@ -63,12 +63,10 @@ cd humanoid_control_ws
 pixi shell
 ```
 
-### ZERO_TORQUE → DAMPING
+### Nothing active → DAMPING
 
 ```bash
-ros2 control switch_controllers \
-    --deactivate zero_torque_controller \
-    --activate   damping_controller
+ros2 control switch_controllers --activate damping_controller
 ```
 
 The robot becomes "compliant against velocity but no position holding".
@@ -137,15 +135,16 @@ which runs `prepare` to resolve the ONNX + `.mcap` motion bag and emit
 the parameter overlay. Once that launch has spawned it, you can activate
 it by hand the same way as below.
 
-### Anything → ZERO_TORQUE (always end here)
+### Anything → STOP (always end here)
 
 ```bash
-ros2 control switch_controllers \
-    --deactivate <whatever_is_active> \
-    --activate   zero_torque_controller
+ros2 control switch_controllers --deactivate <whatever_is_active>
 ```
 
-Before `Ctrl+C`-ing the launch, transition back to `zero_torque`.
+Activate nothing. With no mode claiming the joints the hardware drives its safe
+state, so this cannot fail to reach a safe configuration.
+
+Before `Ctrl+C`-ing the launch, transition back to this state.
 The plugin's `on_deactivate` will send Disable to every motor when
 the launch tears down, but landing at `zero_torque` first means
 there's no risk of a non-zero command in flight at the moment of
@@ -158,8 +157,8 @@ shutdown.
 ros2 control list_controllers
 # Expected after the first switch:
 #   damping_controller        humanoid_control/DampingController        active
-#   zero_torque_controller    humanoid_control/DampingController        inactive
 #   joint_state_broadcaster   joint_state_broadcaster/...  active
+#   safety_monitor            humanoid_control/SafetyMonitorController  active
 #   standby_controller_a      humanoid_control/StandbyController        inactive
 #   standby_controller_b      humanoid_control/StandbyController        inactive
 #   standby_controller_y      humanoid_control/StandbyController        inactive
@@ -182,7 +181,7 @@ ros2 control list_controllers --verbose
 ros2cs () {
     ros2 control switch_controllers --deactivate "$1" --activate "$2"
 }
-ros2cs zero_torque_controller damping_controller
+ros2cs standby_controller_a damping_controller
 
 # Force a strict switch (fail if either controller is in the wrong state)
 ros2 control switch_controllers \

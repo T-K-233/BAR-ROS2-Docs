@@ -85,8 +85,8 @@ wrong without it.
 
 ## Button map
 
-The mapping lives in `joy_teleop_lite.yaml` (with siblings
-`joy_teleop_biped.yaml` and `joy_teleop_prime.yaml`) and is read by the
+The mapping lives in `lite_joy_teleop.yaml` (with siblings
+`biped_joy_teleop.yaml` and `prime_joy_teleop.yaml`) and is read by the
 stock `joy_teleop` node. Each entry maps a button — or an `L1`/`R1` chord —
 to **one** `switch_controller` call that **activates one controller and
 deactivates its siblings**, with **BEST_EFFORT** strictness. There is no
@@ -100,12 +100,15 @@ ordering: any row fires from any current mode.
 | `L1` + `Y` | STANDBY (Pose Y) | `standby_controller_y` |
 | `R1` + `A` | LOCOMOTION | `rl_policy_controller` |
 | `R1` + `B` | REMOTE | `remote_policy_controller` |
-| `BACK` | STOP | `zero_torque_controller` |
+| `BACK` | STOP | *nothing* — deactivates every mode |
 
-`teleop_tools` is not in robostack-jazzy, so it is built from source via
+`teleop_tools` is not in robostack-jazzy. The `berkeley-humanoids` channel
+publishes `ros-jazzy-joy-teleop` and `ros-jazzy-teleop-tools-msgs`, so a
+channel install gets it as a package; a source workspace builds it from
 `humanoid_control.repos`.
 
-`BACK` selects `zero_torque_controller`: the motors hold zero torque but
+`BACK` activates nothing: it deactivates every mode and the hardware holds
+each joint's safe state. The motors hold zero torque but
 stay **enabled** — the robot is still on the bus. It is **not** a
 power-down. Full CAN Disable happens only on `Ctrl+C`, when the hardware
 plugin's `on_deactivate` runs. There is no button-driven shutdown and no
@@ -136,7 +139,8 @@ the Prime `erob_impedance_manager` both do this.
 Fault response is now **purely** ros2-control's own `fallback_controllers`
 mechanism. Each mode controller declares
 `fallback_controllers: [damping_controller]` (and `damping_controller`
-itself falls back to `zero_torque_controller`); if a controller's
+declares no fallback of its own, because the hardware's safe state is the
+floor); if a controller's
 `update()` returns `ERROR` — e.g. a non-finite observation — the
 controller_manager deactivates it and activates its fallback.
 

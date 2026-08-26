@@ -124,9 +124,9 @@ from any other in a single press: **X** activates DAMP
 (`damping_controller`); **L1+A** / **L1+B** activate STANDBY
 (`standby_controller_a` / `_b`); **R1+A** activates LOCOMOTION
 (`rl_policy_controller`); **R1+B** activates REMOTE
-(`remote_policy_controller`); **BACK** activates STOP
-(`zero_torque_controller`). Each press activates that one controller and
-deactivates its siblings. Headless, the same switches are plain
+(`remote_policy_controller`); **BACK** is STOP, which deactivates every mode
+and activates nothing, leaving the hardware to hold each joint's safe state.
+Each other press activates that one controller and deactivates its siblings. Headless, the same switches are plain
 `ros2 control switch_controllers --activate <name> --deactivate <name>`
 calls.
 :::
@@ -147,9 +147,9 @@ reads `update_rate` from the same controllers YAML the CM loads and passes it as
   in the pinned `ethercat_driver`) it is **~13.6 s with zero faults**. See
   [Troubleshooting → Prime eRob bringup](../reference/troubleshooting.md) if it
   stalls.
-- The controller spawners are **sequenced** (`joint_state_broadcaster` →
-  `zero_torque_controller` → the inactive `damping` / `standby` /
-  `remote_policy` controllers). They serialize on a file lock; chaining them on
+- The controller spawners are **sequenced** (`joint_state_broadcaster` → the
+  inactive `damping` / `standby` / `remote_policy` batch → `safety_monitor`,
+  which can only activate once its fallback is configured). They serialize on a file lock; chaining them on
   process-exit lets the first wait out the eRob activation alone and the rest
   run fast.
 - `/joint_states` is published as **`/prime/joint_states`**.

@@ -37,7 +37,7 @@ is in the joint frame — controllers never see the raw encoder.
 | Parameter | Per | Where it lives | What it captures |
 |---|---|---|---|
 | `direction` | joint | URDF `<param>` inside the `<ros2_control>` block | Wiring sign — does the motor's positive direction match the URDF's positive joint direction? |
-| `homing_offset` | joint | `humanoid_bringup_lite/config/calibration.yaml` | Per-physical-robot encoder zero offset (motor frame, rad). |
+| `homing_offset` | joint | `config/calibration.yaml` (deployment workspace) | Per-physical-robot encoder zero offset (motor frame, rad). |
 
 The split is deliberate:
 

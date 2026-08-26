@@ -80,7 +80,7 @@ The `lite_sdk2` SDK builds its publisher/subscriber layer on top. See
 URDF / xacro / meshes / `<ros2_control>` blocks. **Lite's description is no longer
 in `Humanoid Control`** — it lives in the external, CAD-generated
 [`lite_description`](https://github.com/Berkeley-Humanoids/Lite-Description) repo
-(bar deploys the `lite_dummy` variant), pulled in via `bar.repos`. It is
+(bar deploys the `lite_dummy` variant), pulled in via `humanoid_control.repos`. It is
 **asset-only**: the RViz inspector (`lite_view.launch.py` + `view_lite.rviz`) now
 lives in `humanoid_bringup_lite`. Prime's description likewise lives in the external [`prime_description`](https://github.com/T-K-233/Prime-Description) repo (bar deploys the `prime_dummy` variant, which also carries the hybrid eRob+Sito `<ros2_control>`).
 
@@ -160,8 +160,8 @@ Both:
   `/safety_status` is **telemetry only** — nothing subscribes to auto-fall
   to DAMPING. Controller-side faults are handled by the controller_manager's
   native `fallback_controllers` (each mode controller → `damping_controller`,
-  `damping_controller` → `zero_torque_controller`); bus-level faults are
-  cleared by the operator STOP (`BACK` → `zero_torque_controller`).
+  `damping_controller`, which declares no fallback); bus-level faults are
+  cleared by the operator STOP (`BACK`, which deactivates every mode).
 
 Ships three CLI executables alongside the plugin:
 
@@ -274,7 +274,7 @@ The first two launches:
 2. Start either `ros2_control_node` (real) or `mujoco_sim` (sim, with
    `MujocoRos2ControlPlugin` loaded as a pluginlib physics plugin).
 3. Start `robot_state_publisher`.
-4. Spawn `joint_state_broadcaster` (active) + `zero_torque_controller`
+4. Spawn `joint_state_broadcaster` (active) + `safety_monitor`
    (active) + the remaining mode controllers (inactive) — `damping`,
    the standby poses (`standby_controller_a` / `standby_controller_b` /
    `standby_controller_y`), `rl_policy`, and `remote_policy`.
@@ -282,9 +282,9 @@ The first two launches:
    when `enable_joy_teleop:=true` (the default).
 6. Start `joy_node` (when `enable_gamepad:=true`, which is the default).
 
-`humanoid_bringup_lite/config/sim_overrides.yaml` adds `use_sim_time:=true`
-on top of `humanoid_control_lite_controllers.yaml` for the MuJoCo path.
-`humanoid_bringup_lite/config/calibration.yaml` is the per-physical-robot
+`humanoid_bringup_lite/config/lite_sim_overrides.yaml` adds `use_sim_time:=true`
+on top of `lite_controllers.yaml` for the MuJoCo path.
+The deployment workspace's `config/calibration.yaml` is the per-physical-robot
 zero offset that `humanoid_devices_robstride` applies at the bus boundary on the
 real path (regenerate via `ros2 launch humanoid_bringup_lite calibrate.launch.py` — see the
 [Launch args](launch_args.md#humanoid_bringup_litelaunchcalibratelaunchpy)
@@ -307,6 +307,6 @@ single-machine sim/dev shortcut:
 
 ## External (vcs-imported, not in this repo)
 
-Pinned in `bar.repos` and fetched via
-`vcs import --input src/humanoid_control/bar.repos src` — see the
+Pinned in `humanoid_control.repos` and fetched via
+`vcs import --input src/humanoid_control/humanoid_control.repos src` — see the
 [installation page](../getting_started/installation.md#4-pull-third-party-sources).

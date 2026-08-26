@@ -36,7 +36,7 @@ task interface itself.
 | `hc calibrate` | `pixi run calibrate` | `ros2 launch humanoid_bringup_lite calibrate.launch.py` |
 
 Tasks forward trailing arguments verbatim
-(`pixi run ping-bus --iface can0 --id 11`). Commands without a task are
+(`pixi run ping-bus --channel can0 --id 11`). Commands without a task are
 deliberate — rarely-used tools get no alias. Run them inside
 `pixi shell` as plain `ros2 run …`, or from any terminal as
 `pixi run -- ros2 run …`.
@@ -70,16 +70,16 @@ These are normally driven by their launch files, but are reachable via
 ### `robstride_ping`
 
 ```bash
-ros2 run humanoid_devices_robstride robstride_ping --iface can0 --id 11
-ros2 run humanoid_devices_robstride robstride_ping --iface can0 --id 11 --read-status
+ros2 run humanoid_devices_robstride robstride_ping --channel can0 --id 11
+ros2 run humanoid_devices_robstride robstride_ping --channel can0 --id 11 --read-status
 
 # Equivalent one-line task wrapper:
-pixi run ping-bus --iface can0 --id 11
+pixi run ping-bus --channel can0 --id 11
 ```
 
 | Arg | Default | Description |
 |---|---|---|
-| `--iface` | `can0` | SocketCAN interface |
+| `--channel` | `can0` | SocketCAN interface |
 | `--id` | `32` | Target Robstride device ID |
 | `--timeout-ms` | `500` | How long to wait for the reply |
 | `--read-status` | (off) | After GetDeviceId, also Enable → wait for OperationStatus → Disable, for a one-shot pose / fault read |
@@ -95,17 +95,17 @@ Used in: [Tutorials → Drive one Robstride](../tutorials/drive_one_robstride.md
 ### `robstride_discover`
 
 ```bash
-ros2 run humanoid_devices_robstride robstride_discover --iface can0
-ros2 run humanoid_devices_robstride robstride_discover --iface can0 \
+ros2 run humanoid_devices_robstride robstride_discover --channel can0
+ros2 run humanoid_devices_robstride robstride_discover --channel can0 \
     --scan-from 1 --scan-to 127 --per-id-wait-ms 8
 
 # Equivalent one-line task wrapper:
-pixi run scan-bus --iface can0
+pixi run scan-bus --channel can0
 ```
 
 | Arg | Default | Description |
 |---|---|---|
-| `--iface` | `can0` | SocketCAN interface |
+| `--channel` | `can0` | SocketCAN interface |
 | `--scan-from` | `1` | Lowest ID to ping |
 | `--scan-to` | `32` | Highest ID to ping (inclusive; clamped to 127) |
 | `--host-id` | `253` | Host CAN ID used in the GetDeviceId frame |
@@ -125,9 +125,9 @@ Used in: [How-to → Probe CAN bus](../how_to/probe_can_bus.md),
 
 ```bash
 # Link RTT / jitter probe against one actuator:
-ros2 run humanoid_devices_robstride robstride_probe --iface can0 --id 11
+ros2 run humanoid_devices_robstride robstride_probe --channel can0 --ids 11
 # Equivalent one-line task wrapper:
-pixi run profile-bus --iface can0 --id 11
+pixi run profile-bus --channel can0 --ids 11
 
 # Report companion — rarely used, no task:
 ros2 run humanoid_devices_robstride robstride_probe_report
@@ -175,12 +175,12 @@ Used in: [Tutorials → Drive one Robstride](../tutorials/drive_one_robstride.md
 The stock ROS `teleop_tools` gamepad node. There is **no** `mode_manager`
 executable and no FSM any more — `joy_teleop` maps gamepad buttons
 **directly** to `/controller_manager/switch_controller`, driven entirely
-by a YAML config (`joy_teleop_lite.yaml` / `joy_teleop_biped.yaml` /
-`joy_teleop_prime.yaml`). robostack-jazzy ships no `joy_teleop` binary,
+by a YAML config (`lite_joy_teleop.yaml` / `biped_joy_teleop.yaml` /
+`prime_joy_teleop.yaml`). robostack-jazzy ships no `joy_teleop` binary,
 so it is built from source via `humanoid_control.repos`.
 
 ```bash
-ros2 run joy_teleop joy_teleop --ros-args --params-file joy_teleop_lite.yaml
+ros2 run joy_teleop joy_teleop --ros-args --params-file lite_joy_teleop.yaml
 ```
 
 Each button **activates one controller and deactivates its siblings**
@@ -195,12 +195,13 @@ ordering. Default Lite-arm button map:
 | `L1 + Y` | `standby_controller_y` |
 | `R1 + A` | `rl_policy_controller` (locomotion) |
 | `R1 + B` | `remote_policy_controller` |
-| `BACK` | `zero_torque_controller` (STOP) |
+| `BACK` | *nothing* (STOP — deactivates every mode) |
 
-`BACK` selects `zero_torque_controller` — it no longer shuts the process
+`BACK` activates nothing and the hardware holds each joint's safe state — it no longer shuts the process
 down; CAN Disable still happens on `Ctrl+C` via the hardware
-`on_deactivate`. Normally launched by `lite_real.launch.py` /
-`lite_mujoco.launch.py` (when `enable_joy_teleop:=true`, the default). Without
+`on_deactivate`. Normally launched by `lite_real.launch.py` (gated on
+`enable_joy_teleop`, default `true`) or `lite_mujoco.launch.py` (gated on
+`enable_gamepad`, which covers both `joy_node` and `joy_teleop`). Without
 a gamepad, switch controllers directly with
 `ros2 control switch_controllers --activate <name> --deactivate <name>`.
 

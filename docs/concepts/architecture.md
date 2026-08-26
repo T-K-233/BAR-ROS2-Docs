@@ -97,8 +97,8 @@ controller_manager that activates one controller and deactivates its
 siblings, with **BEST_EFFORT** strictness. The stock `joy_teleop` node (ROS
 `teleop_tools`, built from source via `humanoid_control.repos` since it is
 not in robostack-jazzy) reads `/joy` and issues that call, driven entirely
-by YAML (`joy_teleop_lite.yaml`, `joy_teleop_biped.yaml`,
-`joy_teleop_prime.yaml`; the mapping follows `qiayuanl/unitree_bringup`'s
+by YAML (`lite_joy_teleop.yaml`, `biped_joy_teleop.yaml`,
+`prime_joy_teleop.yaml`; the mapping follows `qiayuanl/unitree_bringup`'s
 `config/g1/joy.yaml`). There is no ordering and no gating — any button
 fires from any current mode.
 
@@ -110,9 +110,10 @@ The Lite button map:
 | `L1` + `A` / `B` / `Y` | STANDBY (Pose A / B / Y) | `standby_controller_a` / `_b` / `_y` |
 | `R1` + `A` | LOCOMOTION | `rl_policy_controller` |
 | `R1` + `B` | REMOTE | `remote_policy_controller` |
-| `BACK` | STOP | `zero_torque_controller` |
+| `BACK` | STOP | *nothing* — deactivates every mode |
 
-`BACK` selects `zero_torque_controller` (motors hold zero torque but stay
+`BACK` activates nothing — every mode is deactivated and the hardware holds
+each joint's safe state (motors hold zero torque but stay
 enabled); it is not a power-down — full CAN Disable happens on `Ctrl+C` via
 the hardware plugin's `on_deactivate`.
 

@@ -117,7 +117,7 @@ so `ros2 launch …` / `ros2 run …` work inside `pixi shell` (or via
 pixi shell
 ros2 pkg list | grep '^humanoid_control_'                              # the humanoid_control_* packages you pulled in
 ros2 launch humanoid_bringup_lite lite_real.launch.py --show-args   # dry-parse the launch (no hardware)
-ros2 run humanoid_devices_robstride robstride_discover --iface can0 --scan-to 32   # read-only CAN scan, e.g.
+ros2 run humanoid_devices_robstride robstride_discover --channel can0 --scan-to 32   # read-only CAN scan, e.g.
 ```
 
 To get the standard one-word aliases (`pixi run scan-bus`,
@@ -236,7 +236,7 @@ ros2 control list_hardware_interfaces 2>/dev/null \
     || echo "(no controller_manager running yet — expected)"
 ```
 
-The `Humanoid Control` packages (Lite's `lite_description` comes separately, via `bar.repos`):
+The `Humanoid Control` packages (Lite's `lite_description` comes separately, via `humanoid_control.repos`):
 
 ```
 humanoid_bringup_lite

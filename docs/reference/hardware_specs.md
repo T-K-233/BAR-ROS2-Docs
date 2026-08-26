@@ -17,7 +17,7 @@ either way; the `<ros2_control>` neck block is added only in the
 
 ### Joint table
 
-Order matches the **canonical index** used by `humanoid_control_lite_controllers.yaml`, the
+Order matches the **canonical index** used by `lite_controllers.yaml`, the
 C++ `MITState` struct, and the Python `humanoid_control_policy.ObservationManager`. Once a
 policy is trained against this order, it is frozen — see "Frozen schemas" in
 [Architecture](../concepts/architecture.md#frozen-schemas).
@@ -79,12 +79,12 @@ target. Lower them when bringing up a new policy on the bench; raise them
 once the motion envelope is verified.
 
 **Edit-rebuild loop** — the caps live in the CAD input, so the retune happens in
-the `lite_description` repo and flows back through `bar.repos`:
+the `lite_description` repo and flows back through `humanoid_control.repos`:
 
 1. In the `lite_description` repo, edit the joint's `torque_limit` (N·m, float)
    and / or `current_limit` (A, float) in `robots/lite_dummy/cad/ros2_control.json`.
 2. Regenerate the xacro: `uv run robot-assets-generate lite_dummy --only xacro`.
-3. Commit + push; bump the `lite_description` pin in `Humanoid Control`'s `bar.repos`
+3. Commit + push; bump the `lite_description` pin in `Humanoid Control`'s `humanoid_control.repos`
    (keep the buildfarm's in sync).
 4. Re-import, rebuild, and re-launch:
 
@@ -112,7 +112,7 @@ the `lite_description` repo and flows back through `bar.repos`:
    ```
 
 **No separate calibration step.** Unlike `homing_offset` (per-physical-robot,
-lives in `humanoid_bringup_lite/config/calibration.yaml`), torque and current
+lives in the deployment workspace's `config/calibration.yaml`), torque and current
 caps are per-robot-tuning — same value on every Lite physical instance,
 versioned alongside the URDF. If you want to A/B-test caps across
 deployments without editing source, set up two checked-out branches of
@@ -162,8 +162,8 @@ sudo ip link set can1 up type can bitrate 1000000
 
 # 2. Read-only sanity scan — no Enable, no MIT.
 #    (run from humanoid_control_ws; the `ros2` lines below assume `pixi shell`.)
-pixi run scan-bus --iface can0 --scan-to 32
-pixi run scan-bus --iface can1 --scan-to 32
+pixi run scan-bus --channel can0 --scan-to 32
+pixi run scan-bus --channel can1 --scan-to 32
 # Expect 7 + 7 = 14 actuators replying at ids 11..17 and 21..27.
 
 # 3. Calibrate the zero pose (once per physical robot).
@@ -195,7 +195,7 @@ Sito actuators for auxiliary joints, running concurrently in the same
 :::info[Prime description is external + hardware-validated]
 The Prime description now lives in the external CAD-generated
 [`prime_description`](https://github.com/T-K-233/Prime-Description) repo — bar
-deploys the `prime_dummy` variant via `bar.repos` — with the **waist dropped**
+deploys the `prime_dummy` variant via `humanoid_control.repos` — with the **waist dropped**
 (rigid torso, **14 actuated DoF**). `humanoid_control_prime_controllers.yaml` binds the real
 14-joint set (no longer a placeholder). The joint specs below were early
 projections; cross-check against `prime_description` + `prime_hardware.yaml`.
@@ -218,7 +218,7 @@ project:
 
 Every controller in `humanoid_controllers` claims **all five** command interfaces,
 even when it only writes some of them (writing zero to the rest is the safe
-default — for example the `zero_torque_controller` instance writes 0 to everything;
+default — for example an unclaimed joint gets 0 on every term;
 `DampingController` writes `K=0, D=damping_value, q_cmd=captured_q`).
 
 :::tip[Why this convention pays off]
@@ -237,7 +237,7 @@ silicon and sim with no URDF interface-tag rewrites.
 
 - [Architecture](../concepts/architecture.md) — how this hardware surface is
   consumed by ros2_control and the mode FSM.
-- [humanoid_control_lite_controllers.yaml](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_controllers/config/humanoid_control_lite_controllers.yaml)
+- [lite_controllers.yaml](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_bringup_lite/config/lite_controllers.yaml)
   — the canonical 17-joint binding for every controller.
 - [`humanoid_devices_robstride/include/humanoid_devices_robstride/robstride_system.hpp`](https://github.com/Berkeley-Humanoids/humanoid_control_ros2/blob/main/humanoid_devices/humanoid_devices_robstride/include/humanoid_devices_robstride/robstride_system.hpp)
   — the SystemInterface implementation for the Lite hardware path.

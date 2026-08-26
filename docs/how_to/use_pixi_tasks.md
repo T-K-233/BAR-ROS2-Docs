@@ -165,8 +165,8 @@ pixi run real enable_gamepad:=false
 pixi run real hardware_config:=$HOME/lite_hardware.jetson.yaml
 pixi run deploy-sim wandb_run_path:=entity/project/run-id
 pixi run policy checkpoint_file:=$HOME/model.onnx
-pixi run ping-bus --iface can0 --id 11
-pixi run scan-bus --iface can1 --scan-to 32
+pixi run ping-bus --channel can0 --id 11
+pixi run scan-bus --channel can1 --scan-to 32
 ```
 
 ## Escape hatches
@@ -202,15 +202,15 @@ description = "Calibration bringup — writes calibration.yaml on Ctrl+C"
 
 [tasks.ping-bus]
 cmd = "ros2 run humanoid_devices_robstride robstride_ping"
-description = "Single-actuator GetDeviceId ping, read-only (--iface, --id)"
+description = "Single-actuator GetDeviceId ping, read-only (--channel, --id)"
 
 [tasks.scan-bus]
 cmd = "ros2 run humanoid_devices_robstride robstride_discover"
-description = "Scan a CAN bus for Robstride device ids, read-only (--iface, --scan-to)"
+description = "Scan a CAN bus for Robstride device ids, read-only (--channel, --scan-to)"
 
 [tasks.profile-bus]
 cmd = "ros2 run humanoid_devices_robstride robstride_probe"
-description = "Link RTT / jitter probe against one actuator (--iface, --id)"
+description = "Link RTT / jitter probe against one actuator (--channel, --id)"
 ```
 
 ## Task lists per workspace

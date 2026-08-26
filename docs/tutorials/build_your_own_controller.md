@@ -232,7 +232,7 @@ ros2 control list_controller_types | grep Hello
 ```bash
 # Bring up Lite with joy_teleop disabled so its button bindings don't
 # switch controllers out from under our hand-loaded one:
-ros2 launch humanoid_bringup_lite lite_mujoco.launch.py enable_joy_teleop:=false
+ros2 launch humanoid_bringup_lite lite_mujoco.launch.py enable_gamepad:=false
 ```
 
 In another terminal, load the controller via the CLI (inside
@@ -261,13 +261,12 @@ ros2 control list_controllers
 # hello_controller        humanoid_control/HelloController        inactive
 ```
 
-Now activate it — but first deactivate `zero_torque_controller` so
+Now activate it — nothing else claims the joints, so
 it isn't fighting over the same joint:
 
 ```bash
 ros2 control switch_controllers \
-    --deactivate zero_torque_controller \
-    --activate   hello_controller
+    --activate hello_controller
 ```
 
 The left shoulder pitch should now sweep ±0.2 rad at 0.5 Hz. Watch
@@ -277,8 +276,7 @@ in the MuJoCo viewer.
 
 ```bash
 ros2 control switch_controllers \
-    --deactivate hello_controller \
-    --activate   zero_torque_controller
+    --deactivate hello_controller
 ```
 
 Then `Ctrl+C` the launch.
