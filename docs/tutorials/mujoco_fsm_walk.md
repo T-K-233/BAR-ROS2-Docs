@@ -37,9 +37,13 @@ on real hardware.
 Plug in the gamepad. In a terminal:
 
 ```bash
-ls /dev/input/js0
-# /dev/input/js0       ← good
+ros2 run joy joy_enumerate_devices
+# an index, a GUID and a name per connected pad ← good
 ```
+
+`joy` is SDL2-based and enumerates through udev, so the legacy
+`/dev/input/js*` nodes are neither necessary nor sufficient. The index in this
+listing is what `joy_device_id` takes.
 
 Quick test that `joy_node` will be happy (inside `pixi shell`):
 
@@ -58,16 +62,16 @@ If `joy_node` errors with permissions, your user isn't in the
 
 ```bash
 ros2 launch humanoid_bringup_lite lite_mujoco.launch.py
-# `enable_gamepad:=true` is already the default; the launch hard-fails
-# if no joystick is detected. Pass enable_gamepad:=false to bypass.
-# `enable_joy_teleop:=true` is also default — it starts the joy_teleop
-# node that maps buttons → switch_controller. Pass
-# enable_joy_teleop:=false to bring the stack up with no button bindings.
+# `enable_gamepad:=true` is already the default; the launch stops if
+# `joy_device_id` is not connected. It gates BOTH joy_node and the
+# joy_teleop node that maps buttons -> switch_controller, so
+# enable_gamepad:=false brings the stack up with no button bindings.
+# (enable_joy_teleop exists only on the *_real launches.)
 ```
 
 Two windows / processes come up:
 - The MuJoCo viewer with Lite at zero pose.
-- `joy_node` reading `/dev/input/js0`, and `joy_teleop` translating its
+- `joy_node` reading SDL2 joystick `joy_device_id` (default `0`), and `joy_teleop` translating its
   buttons into controller switches.
 
 For an extra live URDF view, open a second terminal and run
@@ -80,7 +84,6 @@ In a second terminal:
 cd humanoid_control_ws
 pixi shell
 ros2 control list_controllers
-# zero_torque_controller       active
 # (the other mode controllers loaded inactive)
 ```
 
@@ -107,7 +110,6 @@ and deactivates whatever was running:
 ```bash
 ros2 control list_controllers
 # damping_controller           active
-# zero_torque_controller       inactive
 ```
 
 Watch the MuJoCo arms: they now *resist* dragging. Stiffness is 0
@@ -120,16 +122,15 @@ preconditions.
 
 :::note[Headless equivalent]
 Every button is just a `switch_controllers` call under the hood. With no
-gamepad (or `enable_joy_teleop:=false`) you fire the exact same
+gamepad (or `enable_gamepad:=false`) you fire the exact same
 transition yourself:
 
 ```bash
 ros2 control switch_controllers \
     --activate damping_controller \
-    --deactivate zero_torque_controller
 ```
 
-`joy_teleop` reads `joy_teleop_lite.yaml`, which maps each button to one
+`joy_teleop` reads `lite_joy_teleop.yaml`, which maps each button to one
 of these calls.
 :::
 
@@ -219,14 +220,13 @@ requirement — X always lands you in DAMPING.
 
 ## Step 7 — Press BACK: STOP
 
-Press **BACK**. `joy_teleop` activates `zero_torque_controller`:
+Press **BACK**. `joy_teleop` deactivates every mode and the hardware takes over:
 
 ```bash
 ros2 control list_controllers
-# zero_torque_controller       active
 ```
 
-STOP is **not** a shutdown. `zero_torque_controller` stays enabled and
+STOP is **not** a shutdown. The drives stay enabled and
 holds zero torque on every joint — you're back at the Step 2 start
 state, and you can press any other button to leave it again. There is no
 button that tears the stack down.
@@ -257,7 +257,7 @@ If a mode controller ever errors (e.g. the policy emits a non-finite
 action), it doesn't need the operator or a safety topic to catch it: the
 controller_manager's native `fallback_controllers` fires automatically —
 each mode controller falls back to `damping_controller`, and
-`damping_controller` falls back to `zero_torque_controller`. The
+`damping_controller` declares no fallback, so the hardware's safe state is the floor. The
 `/safety_status` topic is telemetry you can watch, not a trigger that
 switches modes for you.
 

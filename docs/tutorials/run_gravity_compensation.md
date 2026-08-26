@@ -98,7 +98,7 @@ cd humanoid_control_ws && pixi shell
 ros2 launch humanoid_bringup_lite lite_mujoco.launch.py
 ```
 
-Wait for `zero_torque_controller` to come active. (For real hardware,
+Wait for the spawners to finish. (For real hardware,
 use `lite_real.launch.py` instead — everything downstream is identical.)
 
 ## Step 3 — Switch to REMOTE
@@ -113,7 +113,6 @@ same `switch_controllers` call yourself (in a second terminal, inside
 ```bash
 ros2 control switch_controllers \
     --activate remote_policy_controller \
-    --deactivate zero_torque_controller
 ```
 
 :::caution[R1+B is REMOTE, not R1+A]

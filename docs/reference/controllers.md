@@ -20,11 +20,12 @@ for the mode overview.
 
 ### `humanoid_control/DampingController`
 
-**Role**: joint-space damping hold. Two instances of it provide two modes —
-`zero_torque_controller` is the startup default and the final fallback, and
-`damping_controller` is the compliant fault fallback.
+**Role**: joint-space damping hold, and the compliant fault fallback. One
+instance, `damping_controller`, spawned per robot.
 
-One class, because they are one law at two gains. The *Springer Handbook of
+There is no longer a second instance for zero torque. Zero torque is not a
+controller: it is what the hardware drives for any joint no controller claims,
+so the robot is safe with nothing loaded at all. See [STOP](#stop) below. The *Springer Handbook of
 Robotics* (Villani & De Schutter, "Force Control" §7.2.2) names the `K_P = 0`
 case **damping control**, and zero torque is that law at `K_D = 0`. Unitree's
 SDK draws the same line as two FSM ids rather than two implementations:
@@ -80,7 +81,7 @@ transition is allowed from any state). Watch the one matching the pose you
 activated.
 
 :::tip[How the bundled config interpolates]
-`humanoid_control_lite_controllers.yaml` configures each instance with **two
+`lite_controllers.yaml` configures each instance with **two
 segments**, where the final `pose_segment` is that instance's target pose — the
 standby instances differ only in this final pose (Pose A vs Pose B vs Pose Y).
 Activating a standby button therefore animates the arms from their **current
@@ -91,8 +92,7 @@ target `K_p` / `K_d` constant the whole time (no gain ramp).
 `fallback_controllers: ["damping_controller"]` is set on the
 controller-manager side so any non-`OK` `return_type` from `update()`
 auto-deactivates Standby and activates Damping. This native
-`fallback_controllers` mechanism — declared on every mode controller
-(`damping_controller` in turn falls back to `zero_torque_controller`) — is now
+`fallback_controllers` mechanism — declared on every mode controller — is now
 the **only** automatic fault response; there is no `/safety_status`-driven
 auto-DAMP node anymore (`/safety_status` is telemetry the operator reacts to).
 
@@ -175,8 +175,8 @@ path relates.
 `teleop_tools` isn't in robostack-jazzy). It **replaces** the old
 `mode_manager` executable: instead of a state machine, it maps each gamepad
 button **directly** to a `/controller_manager/switch_controller` call,
-configured entirely by YAML (`joy_teleop_lite.yaml` / `joy_teleop_biped.yaml` /
-`joy_teleop_prime.yaml`). The button map follows `qiayuanl/unitree_bringup`'s
+configured entirely by YAML (`lite_joy_teleop.yaml` / `biped_joy_teleop.yaml` /
+`prime_joy_teleop.yaml`). The button map follows `qiayuanl/unitree_bringup`'s
 `config/g1/joy.yaml`.
 
 Each button **activates one controller and deactivates its siblings**, with
@@ -194,21 +194,65 @@ no intermediate STANDBY).
 | `L1+Y` | `standby_controller_y` (STANDBY Y) | ✓ | — | — |
 | `R1+A` | `rl_policy_controller` (LOCOMOTION) | ✓ | ✓ | ✓ |
 | `R1+B` | `remote_policy_controller` (REMOTE) | ✓ | — | ✓ |
-| `BACK` | `zero_torque_controller` (STOP) | ✓ | ✓ | ✓ |
+| `BACK` | *nothing* (STOP — deactivates every mode) | ✓ | ✓ | ✓ |
 
-`BACK` (STOP) selects `zero_torque_controller`, which holds zero torque with
-the drives **still enabled** — it is not a shutdown. There is no sequenced
-QUIT / button power-down anymore; CAN `Disable` still fires on `Ctrl+C` via the
-hardware `on_deactivate`.
+### STOP
+
+`BACK` activates nothing. Its `switch_controller` request carries only a
+`deactivate_controllers` list, so it leaves no mode running and the hardware
+holds each joint's safe state: zero stiffness, zero feedforward torque, and the
+joint's `safe_damping` on the velocity term (0 by default, so genuinely zero
+torque). The drives stay **enabled** — STOP is not a shutdown. CAN `Disable`
+still fires on `Ctrl+C` through the hardware's `on_deactivate`.
+
+This is why the robot needs no controller loaded to be safe, and why STOP
+cannot fail to find its target.
+
+The request omits `activate_controllers` rather than setting it to `[]`: an
+empty list reaches `rcl` as an untyped parameter that `joy_teleop` cannot
+declare, which silently kills the node.
 
 Programmatic or headless control skips `joy_teleop` and calls the same service
 directly, e.g. `ros2 control switch_controllers --activate standby_controller_a
---deactivate zero_torque_controller`. The currently active mode is read back
+--deactivate damping_controller`. The currently active mode is read back
 from `/controller_manager/list_controllers` (there is no `/control_mode`
 topic anymore).
 
 ## Spawn order (in launch)
 
-The launch spawns `zero_torque_controller` active independently — so the robot
-boots into the safe zero-torque state regardless of whether `joy_teleop` is
-running (`enable_joy_teleop:=false` skips it entirely).
+No mode controller is spawned active, so the robot boots into the hardware's
+safe state whether or not `joy_teleop` is running
+(`enable_joy_teleop:=false` skips it entirely).
+
+| Spawned | State |
+|---|---|
+| `joint_state_broadcaster` | active |
+| `damping_controller`, `standby_controller_{a,b,y}`, `remote_policy_controller` | **inactive** |
+| `safety_monitor` | active, after the batch above |
+| `rl_policy_controller` | loaded separately by the policy launch |
+
+`safety_monitor` is chained on the inactive batch's exit rather than listed
+beside it. Spawners race for a single file lock, so list order does not order
+them, and `safety_monitor` can only activate once `damping_controller` — its
+fallback — is configured.
+
+## `humanoid_control/SafetyMonitorController`
+
+**Role**: watchdog over the hardware's own health. It reads the `safety_level`
+state interface of every component named in its `safety_components` parameter
+and claims **no command interface**, so it never competes with a mode
+controller and stays active across every switch.
+
+It returns `return_type::ERROR` when any component reports a level at or above
+`fault_level`, and also when an interface cannot be read at all — an unknown
+level is treated as a fault, because reading it as healthy would defeat the
+monitor. That `ERROR` is what triggers the hand-over: the controller_manager
+deactivates this controller and activates its `fallback_controllers`.
+
+It publishes nothing. `/safety_status` is a separate telemetry topic, published
+by the **hardware component** (`RobstrideSystem`), not by this controller.
+
+`fallback_controllers` must be nested under `controller_manager:` beside the
+controller's `type`. Placed anywhere else, `rcl` drops it without complaint and
+the fallback is inert. It also fires only on a non-`OK` `update()`; a failing
+hardware `read()` or `write()` does not reach it.

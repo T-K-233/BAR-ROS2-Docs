@@ -37,9 +37,9 @@ instances, one per physical SocketCAN bus (`LiteLeftArm` claims CAN ids
 |---|---|---|
 | `hardware_config`     | `<humanoid_bringup_lite share>/config/lite_hardware.yaml` | Per-machine bus + joint config. Maps the two `<ros2_control>` blocks to specific SocketCAN ifnames and joint IDs. Override to retarget a robot whose CAN ifnames differ. |
 | `calibration_file`    | `<humanoid_bringup_lite share>/config/calibration.yaml` | Absolute path to the per-physical-robot zero-offset YAML. Pass `''` for identity calibration (only the URDF `direction` sign flip applies, no offset). See [Hardware specs → Bus-bring-up checklist](./hardware_specs.md#bus-bring-up-checklist) for how to regenerate. |
-| `enable_joy_teleop` | `true` | `true` spawns the `joy_teleop` node that maps gamepad buttons directly to `/controller_manager/switch_controller`. `false` skips it — used by `calibrate.launch.py` and raw-debug bringups where the operator drives controllers directly via `ros2 control switch_controllers`. |
-| `enable_gamepad`      | `true`  | `true` spawns `joy_node` so `joy_teleop` can read `/joy`. **The launch hard-fails on missing `joy_dev`.** Pass `false` on a keyboardless lab box and switch controllers directly with `ros2 control switch_controllers` instead. |
-| `joy_dev`             | `/dev/input/js0` | Path passed verbatim to `joy_node`'s `dev` parameter. Override when the onboard computer enumerates the gamepad as something other than `js0` (multiple gamepads plugged in, udev rename). The pre-launch check fails fast when the specific path is missing and lists any other `/dev/input/js*` devices it can see, so the error message tells you which override to pass. Ignored when `enable_gamepad:=false`. |
+| `enable_joy_teleop` | `true` | **`*_real.launch.py` only.** `true` spawns the `joy_teleop` node that maps gamepad buttons directly to `/controller_manager/switch_controller`. `false` skips it — used by `calibrate.launch.py` and raw-debug bringups where the operator drives controllers directly via `ros2 control switch_controllers`. The MuJoCo launches gate `joy_teleop` on `enable_gamepad` instead and declare no `enable_joy_teleop`. |
+| `enable_gamepad`      | `true`  | `true` spawns `joy_node` so `joy_teleop` can read `/joy`. **The launch hard-fails when `joy_device_id` is not connected.** Pass `false` on a keyboardless lab box and switch controllers directly with `ros2 control switch_controllers` instead. |
+| `joy_device_id`       | `0`     | SDL2 joystick index, passed as `joy_node`'s `device_id` parameter. Override when more than one gamepad is connected. The pre-launch check asks `ros2 run joy joy_enumerate_devices` and stops the launch when that index is absent, printing the full SDL2 listing so the error names the index to pass. Ignored when `enable_gamepad:=false`. |
 
 The active-policy target is picked by the gamepad button, not a launch
 arg (convention: A = local policy, B = remote): R1+A activates
@@ -86,7 +86,7 @@ which is the frame the homing-offset formula expects.
 | Arg | Default | Effect |
 |---|---|---|
 | `hardware_config` | `<bundled lite_hardware.yaml>` | Forwarded to `lite_real.launch.py`. |
-| `output` | `$PWD/calibration.yaml` | Path the calibration observer writes on Ctrl+C. After verifying, `mv` it over `humanoid_bringup_lite/config/calibration.yaml` to make it the default for the next `lite_real.launch.py`. |
+| `output` | `$PWD/calibration.yaml` | Path the calibration observer writes on Ctrl+C. After verifying, `mv` it over the deployment workspace's `config/calibration.yaml` to make it the default for the next `lite_real.launch.py`. |
 
 The observer reads per-joint static config (`direction`, `lower_limit`,
 `upper_limit`, `can_id`) from `/robot_description` — there's no parallel
@@ -105,7 +105,7 @@ plugin).
 |---|---|---|
 | `hardware_config` | `<bundled lite_hardware.yaml>` | Same as the real bringup; the bus mapping is unused in MuJoCo but the joint list is read. |
 | `scene` | `lite_dummy` | MJCF scene basename under `lite_description/robots/lite_dummy/mjcf/`. Default `lite_dummy` (robot only). Task packages from sibling repos (e.g. `pianist_ros2`'s `pianist_bringup`) compose their own runtime scene XML and override this arg with their composed-file basename. |
-| `enable_gamepad` | `true` | Same hard-fail-on-missing-`/dev/input/js*` behaviour as the real bringup. |
+| `enable_gamepad` | `true` | Stops the launch when `joy_device_id` is not connected, as the real bring-up does. On the MuJoCo launches it gates `joy_teleop` too, since they declare no `enable_joy_teleop`. |
 
 Implicit:
 
@@ -114,8 +114,8 @@ Implicit:
   decision tree in [Packages](packages.md#lite_description--prime_description-external).
 - Every node runs with `use_sim_time:=true`. Time advances at MuJoCo's
   pace via `/clock`.
-- `humanoid_bringup_lite/config/sim_overrides.yaml` is layered on top of
-  `humanoid_controllers/config/humanoid_control_lite_controllers.yaml` so the real-hardware
+- `humanoid_bringup_lite/config/lite_sim_overrides.yaml` is layered on top of
+  `humanoid_bringup_lite/config/lite_controllers.yaml` so the real-hardware
   launch stays sim-time-free.
 
 ## `humanoid_bringup_prime/launch/prime_real.launch.py`
@@ -259,7 +259,7 @@ ros2 launch humanoid_bringup_lite lite_real.launch.py
 ros2 launch humanoid_bringup_lite lite_real.launch.py enable_gamepad:=false
 
 # Gamepad enumerated as js1 instead of js0 (multiple controllers plugged in).
-ros2 launch humanoid_bringup_lite lite_real.launch.py joy_dev:=/dev/input/js1
+ros2 launch humanoid_bringup_lite lite_real.launch.py joy_device_id:=1
 ```
 
 **Robot onboard computer — prepare + load a policy** (the in-process

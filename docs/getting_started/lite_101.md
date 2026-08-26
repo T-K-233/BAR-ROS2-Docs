@@ -60,7 +60,7 @@ Close the launch (`Ctrl+C` in the terminal) before moving on.
 
 Now the full control plane against MuJoCo physics: `controller_manager`
 hosted inside `mujoco_sim`, all five mode controllers loaded, with
-`zero_torque_controller` active as the safe default. Switching between
+no mode controller active, which is the safe default. Switching between
 modes is flat — the stock `joy_teleop` node maps gamepad buttons
 directly to `controller_manager` switches (there is no FSM
 orchestrator); with no gamepad here, we'll make one such switch by hand
@@ -93,7 +93,6 @@ Expected output (give or take):
 
 ```
 joint_state_broadcaster   joint_state_broadcaster/JointStateBroadcaster   active
-zero_torque_controller    humanoid_control/DampingController                           active
 damping_controller        humanoid_control/DampingController                           inactive
 standby_controller_a      humanoid_control/StandbyController                           inactive
 standby_controller_b      humanoid_control/StandbyController                           inactive
@@ -106,7 +105,7 @@ remote_policy_controller  humanoid_control/RemotePolicyController               
 
 ![MuJoCo bringup spawn sequence](/img/diagrams/getting_started__lite_101__01_mujoco_spawn.svg)
 
-`zero_torque_controller` is active as the **safe startup default**: it
+No mode controller is active, which is the **safe startup default**: the hardware
 claims all 5 command interfaces on every joint and writes 0 to all of
 them every tick. From an operator's perspective the robot is "alive but
 inert".
@@ -178,7 +177,6 @@ same call by hand:
 ```sh
 ros2 control switch_controllers \
     --activate damping_controller \
-    --deactivate zero_torque_controller
 ```
 
 Verify:
@@ -186,7 +184,6 @@ Verify:
 ```sh
 ros2 control list_controllers
 # damping_controller        humanoid_control/DampingController                           active
-# zero_torque_controller    humanoid_control/DampingController                           inactive
 ```
 
 :::tip[Why DAMPING is the "compliant fail-safe"]
@@ -210,8 +207,7 @@ Always end a session in a known safe state. Switch back to ZERO_TORQUE,
 which makes the motors fully compliant again:
 
 ```sh
-ros2 control switch_controllers \
-    --activate zero_torque_controller \
+ros2 control switch_controllers \ \
     --deactivate damping_controller
 ```
 

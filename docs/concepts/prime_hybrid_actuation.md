@@ -78,7 +78,7 @@ Two bringup details are load-bearing:
   lock, and the drives fault. `prime_real.launch.py` reads `update_rate` out of the
   controllers YAML and derives `control_frequency` from it so they cannot
   diverge.
-- **Spawners are sequenced** (`joint_state_broadcaster` → `zero_torque_controller`
+- **Spawners are sequenced** (`joint_state_broadcaster` → the inactive mode batch
   → the inactive mode controllers). The eRob activation takes tens of seconds
   (see [Startup time](#startup-time-70-s--136-s)); running the spawners
   concurrently makes them contend on the spawner's hard-coded 20 s file lock,
@@ -248,9 +248,9 @@ starved the others' output-watchdog.
 bringup drops to **~13.6 s with zero faults** — and there is **no steady-state
 change** (DC SYNC0 still runs at `control_frequency`, and the CM read/write loop
 takes over at `update_rate` once activation returns). The patch is a local
-modification to the ICube `ethercat_driver_ros2` that `bar.repos` pins
+modification to the ICube `ethercat_driver_ros2` that `humanoid_control.repos` pins
 (`ethercat_driver/src/ethercat_driver.cpp`); to survive a fresh `vcs import` it
-must land in a Berkeley fork that `bar.repos` then pins (TODO).
+must land in a Berkeley fork that `humanoid_control.repos` then pins (TODO).
 
 ## Fault / status reference
 

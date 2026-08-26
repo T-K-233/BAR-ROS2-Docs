@@ -56,7 +56,7 @@ ip -d link show can0
 
 ```bash
 cd humanoid_control_ws
-pixi run ping-bus --iface can0 --id <X>
+pixi run ping-bus --channel can0 --id <X>
 # TX  GetDeviceId  id=...
 # RX  GetDeviceId reply  device=<X>  uid=...
 # stats: rx=1 tx=1 rx_dropped=0 tx_failed=0
@@ -69,7 +69,7 @@ forward verbatim.) Replace `<X>` with the motor's configured ID
 you don't know the ID, scan:
 
 ```bash
-pixi run scan-bus --iface can0 --scan-to 127
+pixi run scan-bus --channel can0 --scan-to 127
 ```
 
 A clean reply confirms three things: the bus is up, the motor is
@@ -79,7 +79,7 @@ Enabled the motor yet — `GetDeviceId` is read-only.
 ## Step 4 — Read live status (still read-only)
 
 ```bash
-pixi run ping-bus --iface can0 --id <X> --read-status
+pixi run ping-bus --channel can0 --id <X> --read-status
 # RX  OperationStatus  device=<X>  pos= ... rad  vel= 0.0  torque= 0.0  temp= ... C  fault_bits=0x00
 ```
 
@@ -105,7 +105,6 @@ This brings up:
 - A 1-joint URDF describing your motor (`single_robstride_test`).
 - `ros2_control_node` loading `humanoid_devices_robstride/RobstrideSystem`.
 - `joint_state_broadcaster` (active).
-- `zero_torque_controller` (active — safe).
 - `forward_mit_controller` (loaded **inactive**).
 
 Verify in a second terminal:
@@ -118,7 +117,6 @@ ros2 topic echo --once /joint_states
 # position: [<some real value, not exactly 0.0>]
 
 ros2 control list_controllers
-# zero_torque_controller       active
 # forward_mit_controller       inactive
 ```
 
@@ -136,7 +134,7 @@ A Qt window with five sliders (position, velocity, effort, kp, kd)
 plus a live readout of the measured `(pos, vel, eff)`.
 
 **Don't activate the forward controller yet.** While
-`zero_torque_controller` is active, the sliders are publishing into
+no mode controller is active, the sliders are publishing into
 the void.
 
 ## Step 7 — Move it
@@ -145,8 +143,7 @@ In a third terminal (inside `pixi shell`):
 
 ```bash
 ros2 control switch_controllers \
-    --deactivate zero_torque_controller \
-    --activate   forward_mit_controller
+    --activate forward_mit_controller
 ```
 
 The motor is now under the slider GUI. Workflow:
@@ -171,8 +168,7 @@ Back to safe, then close:
 
 ```bash
 ros2 control switch_controllers \
-    --deactivate forward_mit_controller \
-    --activate   zero_torque_controller
+    --deactivate forward_mit_controller
 
 # Then Ctrl+C the launch terminal.
 ```
@@ -192,8 +188,8 @@ sudo ip link add dev vcan0 type vcan
 sudo ip link set up vcan0
 ```
 
-Then run the same `pixi run ping-bus --iface vcan0` and
-`pixi run scan-bus --iface vcan0`. You won't get replies
+Then run the same `pixi run ping-bus --channel vcan0` and
+`pixi run scan-bus --channel vcan0`. You won't get replies
 (nothing's listening), but the TX path lights up and you can see
 your own frames with `candump vcan0`. The single-motor launch will
 boot but report `RX_TIMEOUT` in `/safety_status`.

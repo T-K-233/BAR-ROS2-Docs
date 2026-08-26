@@ -78,7 +78,7 @@ The same launch as the previous tutorial, no gamepad needed:
 ros2 launch humanoid_bringup_lite lite_mujoco.launch.py
 ```
 
-Wait for `zero_torque_controller` to come active.
+Wait for the spawners to finish; every mode controller loads inactive.
 
 ## Step 2 — Switch to STANDBY
 
@@ -100,7 +100,6 @@ policy), or make the same call by hand:
 ```bash
 ros2 control switch_controllers \
     --activate standby_controller_a \
-    --deactivate zero_torque_controller
 ```
 
 `StandbyController` seeds its setpoint to the current measured joint

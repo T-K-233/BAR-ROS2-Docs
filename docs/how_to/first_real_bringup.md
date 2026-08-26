@@ -20,7 +20,7 @@ any pose.
 - USB-to-CAN adapters plugged into the workstation. Both arms' buses
   are visible at `can0` and `can1` (typical) or whatever the host
   assigned — `ip -br link show type can` to confirm.
-- A pre-existing `humanoid_bringup_lite/config/calibration.yaml` for this
+- A pre-existing `config/calibration.yaml` in the deployment workspace for this
   physical robot. The bundled file works for the development robot;
   if you're on a different unit, [calibrate first](./calibrate_zero_pose.md).
 - Robot **power is on** at the wall, but motors can be in any pose.
@@ -52,10 +52,10 @@ workspace task wrapping
 
 ```bash
 cd humanoid_control_ws
-pixi run scan-bus --iface can0 --scan-to 32
+pixi run scan-bus --channel can0 --scan-to 32
 # Expect 7 actuators at ids 11..17
 
-pixi run scan-bus --iface can1 --scan-to 32
+pixi run scan-bus --channel can1 --scan-to 32
 # Expect 7 actuators at ids 21..27
 ```
 
@@ -73,13 +73,13 @@ ros2 launch humanoid_bringup_lite lite_real.launch.py
 
 Default args: `hardware_config:=<bundled lite_hardware.yaml>
 calibration_file:=<bundled> enable_joy_teleop:=true
-enable_gamepad:=true joy_dev:=/dev/input/js0`. The `hardware_config`
+enable_gamepad:=true joy_device_id:=0`. The `hardware_config`
 YAML provides the per-machine bus + joint mapping (left arm on `can0`
 with ids 11..17, right arm on `can1` with ids 21..27 on the
-development robot). The default `enable_gamepad:=true` hard-fails if
-the resolved `joy_dev` path is missing; the error message lists any
-other `/dev/input/js*` devices it can see so you can override with
-`joy_dev:=/dev/input/jsN`. Pass `enable_gamepad:=false` (or
+development robot). The default `enable_gamepad:=true` stops the launch if
+`joy_device_id` is not connected. The check asks `ros2 run joy
+joy_enumerate_devices` and prints the full listing, so the error names
+the index to pass as `joy_device_id:=N`. Pass `enable_gamepad:=false` (or
 `enable_joy_teleop:=false`) on a keyboardless lab box and switch
 controllers with `ros2 control switch_controllers` directly instead
 (see [Switch controllers manually](./switch_controllers_manually.md)).
@@ -105,11 +105,11 @@ Watch the launch logs for:
 [ros2_control_node-1] Loaded calibration_file '...' (7/7 joints matched).
 [ros2_control_node-1] Successful 'activate' of hardware 'LiteLeftArm'
 [ros2_control_node-1] Successful 'activate' of hardware 'LiteRightArm'
-[spawner-N] Configured and activated zero_torque_controller
+[spawner-N] Configured and activated safety_monitor
 ```
 
 Both bus components activated, both calibration files matched 7/7
-joints, `zero_torque_controller` is active. The motors should now be
+joints, and no mode controller is active. The motors should now be
 holding zero torque — fully back-drivable by hand.
 
 ## Step 4 — Verify in a second terminal
@@ -120,7 +120,7 @@ pixi shell
 
 # 14 joints reporting at the configured update rate
 ros2 control list_controllers
-# Expect: joint_state_broadcaster (active), zero_torque_controller (active),
+# Expect: joint_state_broadcaster (active), safety_monitor (active),
 #         damping_controller / standby_controller_a / standby_controller_b / remote_policy_controller (inactive)
 
 ros2 topic hz /lite/joint_states

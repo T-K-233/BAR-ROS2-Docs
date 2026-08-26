@@ -89,24 +89,28 @@ against bad *output* instead: a NaN / non-finite action returns
 
 Every active-policy controller is configured with
 `fallback_controllers: [damping_controller]` in
-`humanoid_control_lite_controllers.yaml`. The controller_manager interprets this
+`lite_controllers.yaml`. The controller_manager interprets this
 as "if this controller returns ERROR, automatically deactivate it
 and activate the fallback".
 
 The hierarchy is **conservative to most-conservative**:
 
 ```
-RLPolicyController     → damping_controller
-RemotePolicyController → damping_controller
-StandbyController      → damping_controller
-DampingController      → zero_torque_controller
-zero_torque_controller → (no fallback — final fall-back)
+RLPolicyController      → damping_controller
+RemotePolicyController  → damping_controller
+StandbyController       → damping_controller
+SafetyMonitorController → damping_controller
+DampingController       → (none)
 ```
 
-`zero_torque_controller` is the unique safer-than-damping option,
-reserved for cases where DAMPING itself can't be applied (state
-interface unavailable, hardware plugin dead). It writes 0 to every
-interface — no risk of unintended motion regardless of state.
+`damping_controller` declares no fallback, and needs none. If it errors it is
+deactivated with nothing to replace it, which leaves every joint unclaimed —
+and the hardware drives an unclaimed joint to zero stiffness, zero feedforward
+torque, and its `safe_damping` on the velocity term. The floor of the hierarchy
+is therefore the hardware's own safe state, not another controller.
+
+That is the same state STOP produces, and the same state the robot boots into.
+It cannot fail to activate, because nothing has to activate.
 
 ## Layer 4 — `/safety_status` is operator telemetry
 

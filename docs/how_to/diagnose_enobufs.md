@@ -52,8 +52,8 @@ each motor.
 
 ```bash
 # Quick read-only probe to confirm motors are responding
-pixi run scan-bus --iface can0
-pixi run scan-bus --iface can1
+pixi run scan-bus --channel can0
+pixi run scan-bus --channel can1
 # Should report 7 motors on each bus, no ENOBUFS warnings in the output.
 ```
 
@@ -126,7 +126,7 @@ and quiet afterwards, the Enable burst was the issue.
 
 If you've raised qdisc to 1000 and still hit ENOBUFS, the
 controller_manager might be writing too fast for the wire. Lower
-the update rate in `humanoid_control_lite_controllers.yaml`:
+the update rate in `lite_controllers.yaml`:
 
 ```yaml
 controller_manager:

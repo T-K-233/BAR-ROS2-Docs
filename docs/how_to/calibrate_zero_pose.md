@@ -1,6 +1,6 @@
 # Calibrate the zero pose
 
-Per-physical-robot recipe: regenerate `humanoid_bringup_lite/config/calibration.yaml`
+Per-physical-robot recipe: regenerate the deployment workspace's `config/calibration.yaml`
 so the URDF's joint zero matches your robot's encoder zero. Run this
 once per robot (after assembly, after a motor swap, or after a hard
 mechanical reset).
@@ -46,7 +46,7 @@ ros2 launch humanoid_bringup_lite calibrate.launch.py
 `calibration_file:='' enable_joy_teleop:='false' enable_gamepad:='false'`.
 The empty calibration means `/lite/joint_states` carries the
 `direction × raw_motor_pos` frame — exactly what the homing-offset
-formula needs. `zero_torque_controller` stays active, keeping every
+formula needs. No mode controller is activated, so the hardware holds every
 motor at MIT(0, 0, 0, 0, 0) — fully compliant.
 
 The terminal switches to a fixed-block live readout:
@@ -190,7 +190,7 @@ the geometry itself, which silently made the whole fix inert.)
 ## Step 4 — Promote the file
 
 ```bash
-cp ./calibration.yaml src/humanoid_control/humanoid_bringup_lite/config/calibration.yaml
+cp ./calibration.yaml config/calibration.yaml
 ```
 
 That copies into the source tree. Next `colcon build` will pick it
@@ -247,7 +247,7 @@ propagated into the next.
 Before a partial calibration, seed the output from the good config:
 
 ```bash
-cp src/humanoid_control/humanoid_bringup_lite/config/calibration.yaml ./calibration.yaml
+cp config/calibration.yaml ./calibration.yaml
 ```
 :::
 
@@ -257,7 +257,7 @@ its URDF range:
 
 ```bash
 ros2 run humanoid_bringup_lite calibrate_robot --output ./calibration.yaml --sweep-threshold 0.2
-ros2 launch humanoid_bringup_lite calibrate.launch.py coverage:=0.8
+ros2 run humanoid_bringup_lite calibrate_robot --output ./calibration.yaml --coverage 0.8
 ```
 
 ## See also

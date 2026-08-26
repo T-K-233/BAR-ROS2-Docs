@@ -27,7 +27,7 @@ subscribes, or serves. Use this page to find "who publishes X" or
 | `/safety_status` | `humanoid_control_msgs/SafetyStatus` | RELIABLE TRANSIENT_LOCAL depth 1 | every hardware plugin | Per-bus (`humanoid_devices_robstride/can0`, `humanoid_devices_robstride/can1` for Lite). Published only on change. Telemetry — no automatic consumer now (native `fallback_controllers` handles faults; operator reacts to the rest). |
 | `/standby_controller_a/state` | `humanoid_control_msgs/StandbyState` | RELIABLE TRANSIENT_LOCAL depth 1 | `humanoid_control/StandbyController` instance `standby_controller_a` (when active) | Pose A. Telemetry only — `is_finished` no longer gates anything. |
 | `/standby_controller_b/state` | `humanoid_control_msgs/StandbyState` | RELIABLE TRANSIENT_LOCAL depth 1 | `humanoid_control/StandbyController` instance `standby_controller_b` (when active) | Pose B. Telemetry only. (Lite also spawns `standby_controller_y` → `/standby_controller_y/state`.) |
-| `/joy` | `sensor_msgs/Joy` | SENSOR_DATA | `joy_node` | When `enable_gamepad:=true` (default). Consumed by `joy_teleop` (not `mode_manager`). The launch hard-fails on missing `/dev/input/js*`. |
+| `/joy` | `sensor_msgs/Joy` | SENSOR_DATA | `joy_node` | When `enable_gamepad:=true` (default). Consumed by `joy_teleop` (not `mode_manager`). The launch stops when `joy_device_id` is not connected. |
 
 ### Active-controller-dependent
 

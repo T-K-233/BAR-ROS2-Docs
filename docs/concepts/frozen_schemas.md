@@ -27,7 +27,7 @@ specific surfaces are not.
 
 ### 1. Canonical joint order
 
-The order of joints in `humanoid_control_lite_controllers.yaml`'s `joints:` list
+The order of joints in `lite_controllers.yaml`'s `joints:` list
 is canonical:
 
 ```yaml
@@ -130,7 +130,7 @@ position); removing them is not.
 To draw the contrast: most of the rest of the project is free to
 refactor.
 
-- **Per-joint default `K_p` / `K_d`** in `humanoid_control_lite_controllers.yaml`
+- **Per-joint default `K_p` / `K_d`** in `lite_controllers.yaml`
   are tuning numbers, not schema. Change at will.
 - **CAN ids in the URDF** are wiring facts; if the physical robot
   changes, the URDF changes.

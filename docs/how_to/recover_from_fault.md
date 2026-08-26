@@ -18,12 +18,12 @@ There are two independent mechanisms, and neither is the old
   declares `fallback_controllers: [damping_controller]`. If a
   controller's `update()` returns ERROR, the controller_manager
   deactivates it and activates its fallback — `damping_controller`,
-  which itself falls back to `zero_torque_controller`. This happens at
+  which declares no fallback of its own. This happens at
   the controller_manager layer and is independent of `/safety_status`.
 - **Operator reaction to `/safety_status` (manual).** A hardware bus
   fault is published on `/safety_status` as telemetry only — it does
   **not** switch modes for you. When you see a non-OK level, switch to
-  STOP (gamepad `BACK` → `zero_torque_controller`) or DAMP (gamepad `X`
+  STOP (gamepad `BACK`, which deactivates every mode) or DAMP (gamepad `X`
   → `damping_controller`), or use `ros2 control switch_controllers`.
 
 ## Read the status first
@@ -78,7 +78,7 @@ from.
 
 **Recovery**:
 1. Confirm motors are powered:
-   `pixi run scan-bus --iface canN`
+   `pixi run scan-bus --channel canN`
 2. Confirm wiring — wiggle the daisy chain connector at each motor.
 3. Restart the launch. `RX_TIMEOUT` clears on `on_activate` so a
    relaunch is sufficient; no power-cycle needed.
@@ -108,7 +108,7 @@ generic flag.
    every joint.
 2. If the fault persists, single-step diagnosis:
    ```bash
-   pixi run ping-bus --iface canN --id <X> --read-status
+   pixi run ping-bus --channel canN --id <X> --read-status
    ```
    The reply's `fault_bits` byte tells you which specific sub-cause:
    - `bit 0` = overtemperature (also raised as `FLAG_TEMPERATURE_LIMIT`)
@@ -184,13 +184,11 @@ If you suspect transient flags are stuck:
 ```bash
 # Force a switch through ZERO_TORQUE to reset accumulated state.
 ros2 control switch_controllers \
-    --deactivate damping_controller \
-    --activate   zero_torque_controller
+    --deactivate damping_controller
 
 # Then activate as usual:
 ros2 control switch_controllers \
-    --deactivate zero_torque_controller \
-    --activate   damping_controller
+    --activate damping_controller
 ```
 
 `on_activate` clears the accumulated `fault_flags_` (except sticky

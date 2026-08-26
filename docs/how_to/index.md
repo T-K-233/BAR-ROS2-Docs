@@ -15,8 +15,8 @@ and now have a concrete task in mind. How-tos skip the pedagogy that
 
 | Guide | Use it when |
 |---|---|
-| [First real-hardware bringup](./first_real_bringup.md) | You have the physical Lite robot on the bench and a workspace built. You want `/lite/joint_states` to flow and `zero_torque_controller` active. |
-| [Calibrate the zero pose](./calibrate_zero_pose.md) | The URDF "joint zero" doesn't match where the robot's encoders read zero. You want to regenerate `humanoid_bringup_lite/config/calibration.yaml`. |
+| [First real-hardware bringup](./first_real_bringup.md) | You have the physical Lite robot on the bench and a workspace built. You want `/lite/joint_states` to flow and the robot holding its safe state. |
+| [Calibrate the zero pose](./calibrate_zero_pose.md) | The URDF "joint zero" doesn't match where the robot's encoders read zero. You want to regenerate `config/calibration.yaml` in the deployment workspace. |
 | [Probe actuators on a CAN bus](./probe_can_bus.md) | You suspect a wiring issue, a missing motor, or just want to scan all IDs on a bus before bringup. |
 | [Switch controllers without the FSM](./switch_controllers_manually.md) | The gamepad isn't in the loop. You want to call `switch_controller` directly to put the robot in DAMPING / STANDBY / REMOTE. |
 

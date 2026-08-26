@@ -45,8 +45,8 @@ args forward verbatim:
 
 ```bash
 cd humanoid_control_ws
-pixi run scan-bus --iface can0
-pixi run scan-bus --iface can1
+pixi run scan-bus --channel can0
+pixi run scan-bus --channel can1
 ```
 
 Default scan range: 1..32. Sends one `GetDeviceId` per ID with 8 ms
@@ -71,11 +71,11 @@ on `can1` (right arm).
 
 ```bash
 # Default range is 1..32; widen if you suspect IDs outside that.
-pixi run scan-bus --iface can0 \
+pixi run scan-bus --channel can0 \
     --scan-from 1 --scan-to 127
 
 # Tighter scan (faster) if you only want to check specific IDs:
-pixi run scan-bus --iface can0 \
+pixi run scan-bus --channel can0 \
     --scan-from 11 --scan-to 17
 ```
 
@@ -84,7 +84,7 @@ pixi run scan-bus --iface can0 \
 If the bus is slow / cheap-USB-adapter, raise `--per-id-wait-ms`:
 
 ```bash
-pixi run scan-bus --iface can0 \
+pixi run scan-bus --channel can0 \
     --per-id-wait-ms 20
 ```
 
@@ -93,7 +93,7 @@ pixi run scan-bus --iface can0 \
 When you know the ID and want a deeper status check:
 
 ```bash
-pixi run ping-bus --iface can0 --id 11
+pixi run ping-bus --channel can0 --id 11
 # TX  GetDeviceId  id=...
 # RX  GetDeviceId reply  device=11  uid=...
 # stats: rx=1 tx=1 rx_dropped=0 tx_failed=0
@@ -104,7 +104,7 @@ With `--read-status` the ping briefly Enables, prompts an
 responds with calibrated-looking values:
 
 ```bash
-pixi run ping-bus --iface can0 --id 11 --read-status
+pixi run ping-bus --channel can0 --id 11 --read-status
 # RX  OperationStatus  device=11  pos= 4.9200 rad  vel= 0.0  torque= 0.0  temp=24.0 C  fault_bits=0x00
 ```
 
@@ -123,7 +123,7 @@ candump can0
 candump -n 50 can0   # first 50 frames then exit
 ```
 
-In a healthy bringup with `zero_torque_controller` active, you'll see
+In a healthy bring-up with no mode controller active, you'll see
 14 MIT-mode frames per tick (7 each on can0 / can1) plus the
 occasional `OperationStatus` reply.
 

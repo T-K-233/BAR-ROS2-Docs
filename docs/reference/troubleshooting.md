@@ -53,29 +53,34 @@ the plugin's seeing from URDF.
 - You hand-edited the YAML and broke a key.
 
 **Fix**: open the file, compare keys against
-`humanoid_control_lite_controllers.yaml`'s `joints:` list. They must match
+`lite_controllers.yaml`'s `joints:` list. They must match
 character-for-character. Or regenerate the file via
 [Calibrate the zero pose](../how_to/calibrate_zero_pose.md) — the
 output uses live URDF names.
 
-## Launch dies with "`joy_dev:=...` does not exist"
+## Launch dies with "`joy_device_id:=N` is not connected"
 
-**Diagnosis**: `enable_gamepad:=true` is the default, and the bringup
-hard-fails when the resolved `joy_dev` path is missing.
+**Diagnosis**: `enable_gamepad:=true` is the default, and the bring-up
+stops when that SDL2 joystick index is absent. `joy_node` would
+otherwise wait for an `SDL_JOYDEVICEADDED` event that never arrives,
+without logging or exiting, so the first symptom would be button
+presses doing nothing.
 
 **Fix**, in order of likelihood:
 
-1. **Gamepad not plugged in.** The launch's error message
-   distinguishes "device path missing but other `js*` exist" from
-   "no joystick at all" so you can tell at a glance.
-2. **Wrong device number.** The error message lists every
-   `/dev/input/js*` the launch could see; pass
-   `joy_dev:=/dev/input/jsN` (matching one of them) on the launch
-   command line.
+1. **Gamepad not plugged in.** The error prints the whole SDL2 listing,
+   so an empty one means no joystick at all.
+2. **Wrong index.** The listing names every index SDL2 can see; pass
+   one of them as `joy_device_id:=N`.
 3. **Headless / CI bringup.** Pass `enable_gamepad:=false` and switch
    controllers directly with
    `ros2 control switch_controllers --activate <name> --deactivate <name>`
    instead.
+
+Do not debug this by listing `/dev/input/js*`. `joy` 3.3.0 is SDL2-based
+and enumerates through udev, so those legacy nodes are neither necessary
+nor sufficient — the launch check asks
+`ros2 run joy joy_enumerate_devices` for exactly that reason.
 
 ## Gamepad is connected and `cat /dev/input/js0` shows data, but `/joy` never publishes
 
@@ -122,8 +127,8 @@ Then **start a fresh login** for it to take effect (new terminal / new
 SSH session, or reboot). Verify `id` now lists `input`, relaunch, and
 `ros2 topic hz /joy` should show ~20 Hz while you hold a button.
 
-This is distinct from the `joy_dev` error above: there the device path
-is *missing*; here it *exists and reads fine with `cat`*, and only the
+This is distinct from the index error above: there SDL2 cannot see the
+pad at all; here it *exists and reads fine with `cat`*, and only the
 SDL2/evdev permission is wrong.
 
 **Headless / CI**: skip the pad with `enable_gamepad:=false` and switch
@@ -143,7 +148,7 @@ hardware adapter overload at very high frame rates.
    the USB-to-CAN adapter.
 3. **High-rate overload** — only relevant with many joints + tight
    update_rate. Lower `controller_manager.update_rate` in
-   `humanoid_control_lite_controllers.yaml`, or bump `sudo ip link set canN
+   `lite_controllers.yaml`, or bump `sudo ip link set canN
    txqueuelen 100` (default 10).
 
 Full walk: [Diagnose ENOBUFS](../how_to/diagnose_enobufs.md).
@@ -398,7 +403,7 @@ bring-up loop paced its `update()` at the 50 Hz control rate, so convergence
 took ~7 s per slave; the faults are collateral (each joining slave briefly
 starves the others' output watchdog).
 
-**Fix**: a local patch to the ICube `ethercat_driver_ros2` (pinned by `bar.repos`)
+**Fix**: a local patch to the ICube `ethercat_driver_ros2` (pinned by `humanoid_control.repos`)
 runs the bring-up loop at 1 kHz, independent of `control_frequency`. Bringup drops
 to ~13.6 s with zero faults, no steady-state change. See [Prime hybrid actuation](../concepts/prime_hybrid_actuation.md).
 

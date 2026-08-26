@@ -105,8 +105,7 @@ ros2 control load_controller \
     mit_joint_trajectory_controller
 
 ros2 control switch_controllers \
-    --deactivate zero_torque_controller \
-    --activate   mit_joint_trajectory_controller
+    --activate mit_joint_trajectory_controller
 ```
 
 `rqt_joint_trajectory_controller`'s slider GUI **won't auto-discover

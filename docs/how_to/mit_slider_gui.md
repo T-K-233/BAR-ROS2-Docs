@@ -51,7 +51,6 @@ mit_slider_gui` directly.
 This brings up:
 - `controller_manager` against the single Robstride test URDF
 - `joint_state_broadcaster` (active)
-- `zero_torque_controller` (active — safe default)
 - `forward_mit_controller` (loaded, **inactive**)
 
 In a second terminal, open the slider GUI. It's a rarely-used tool,
@@ -73,8 +72,7 @@ compliant. To start commanding (from inside `pixi shell`):
 
 ```bash
 ros2 control switch_controllers \
-    --deactivate zero_torque_controller \
-    --activate   forward_mit_controller
+    --activate forward_mit_controller
 ```
 
 The motors **immediately** apply whatever the sliders currently say.
@@ -104,8 +102,7 @@ Always end in `zero_torque`:
 ```bash
 # Drop kp / kd / effort to 0 with the sliders, OR:
 ros2 control switch_controllers \
-    --deactivate forward_mit_controller \
-    --activate   zero_torque_controller
+    --deactivate forward_mit_controller
 ```
 
 Then `Ctrl+C` the launch. The plugin's `on_deactivate` sends Disable
@@ -127,10 +124,10 @@ ros2 control load_controller \
     forward_one_joint
 ```
 
-3. Switch the target joint's command claim from `zero_torque_controller`
-   to `forward_one_joint` — but each mode controller claims *all* the
-   joints, so this requires deactivating `zero_torque_controller`
-   on the full robot. In practice it's easier to load a
+3. Claim the target joint with `forward_one_joint`. Nothing else need be
+   deactivated when no mode controller is active, but a mode controller
+   claims *all* the joints, so it has to be deactivated on the full robot
+   first. In practice it's easier to load a
    `forward_command_controller` that claims the target joint AND
    the un-targeted joints with stiffness=0 / damping=0 / effort=0.
 
@@ -147,8 +144,8 @@ interactions.
   no rate limiting or smoothing. A big slider jump becomes a step
   command.
 - Closing the GUI window while the forward controller is active
-  leaves the last-written values in the cmd buffers. Always switch
-  back to `zero_torque_controller` before closing.
+  leaves the last-written values in the cmd buffers. Always deactivate it
+  before closing, which returns the joints to the hardware's safe state.
 
 ## See also
 
